@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/constants/app_strings.dart';
+import 'core/router/app_router.dart';
 import 'state/providers/auth_provider.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://eohytcqfugefhjydhtrp.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaHl0Y3FmdWdlZmhqeWRodHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTI4MDQsImV4cCI6MjA5NDU4ODgwNH0.l6uozOQW8jk_8WTB9ytv87oGDjLNwqrbISUsPQ33Oz8',
+  );
+
   runApp(const GoDahApp());
 }
 
@@ -16,31 +26,18 @@ class GoDahApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()..restoreSession()),
-        // Tambahkan provider lain di sini:
-        // ChangeNotifierProvider(create: (_) => OrderProvider()),
-        // ChangeNotifierProvider(create: (_) => PorterProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
       ],
-      child: MaterialApp(
-        title: AppStrings.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: const _HomeScreen(),
+      child: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
+          return MaterialApp.router(
+            title: AppStrings.appName,
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            routerConfig: AppRouter.router(auth),
+          );
+        },
       ),
-    );
-  }
-}
-
-// ── Contoh screen dengan semua library ────────────────────────────────────────
-
-class _HomeScreen extends StatelessWidget {
-  const _HomeScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.appName)),
-      body: const Center(child: Text('Go-Dah siap dibangun 🚀')),
     );
   }
 }
