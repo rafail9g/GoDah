@@ -1,0 +1,204 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_dimens.dart';
+import '../constants/app_text_styles.dart';
+
+abstract final class AppTheme {
+  static ThemeData get light => _buildTheme();
+
+  static ThemeData _buildTheme() {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      primary: AppColors.primary,
+      secondary: AppColors.secondary,
+      tertiary: AppColors.accent,
+      surface: AppColors.background,
+      error: AppColors.error,
+      onPrimary: AppColors.white,
+      onSecondary: AppColors.white,
+      onSurface: AppColors.grey900,
+      onError: AppColors.white,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: AppColors.background,
+
+      // AppBar
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        centerTitle: true,
+        toolbarHeight: AppDimens.appBarHeight,
+        titleTextStyle: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.white,
+        ),
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+        ),
+        iconTheme: IconThemeData(
+          color: AppColors.white,
+          size: AppDimens.iconMd,
+        ),
+      ),
+
+      // ElevatedButton
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          minimumSize: const Size(
+            AppDimens.buttonMinWidth,
+            AppDimens.buttonHeightMd,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          ),
+          textStyle: AppTextStyles.buttonMd,
+          elevation: AppDimens.elevationLow,
+        ),
+      ),
+
+      // OutlinedButton
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          minimumSize: const Size(
+            AppDimens.buttonMinWidth,
+            AppDimens.buttonHeightMd,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          ),
+          textStyle: AppTextStyles.buttonMd,
+        ),
+      ),
+
+      // TextButton
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.secondary,
+          textStyle: AppTextStyles.buttonMd,
+        ),
+      ),
+
+      // InputDecoration
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppDimens.paddingInput,
+          vertical: AppDimens.paddingInput,
+        ),
+        hintStyle: AppTextStyles.inputHint,
+        labelStyle: AppTextStyles.inputLabel,
+        errorStyle: AppTextStyles.inputError,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderSide: const BorderSide(color: AppColors.grey300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderSide: const BorderSide(color: AppColors.grey300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
+        ),
+      ),
+
+      // Card — pakai CardThemeData (Flutter >= 3.22)
+      cardTheme: CardThemeData(
+        color: AppColors.white,
+        elevation: AppDimens.elevationLow,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        ),
+      ),
+
+      // BottomNavigationBar
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.grey400,
+        type: BottomNavigationBarType.fixed,
+        elevation: AppDimens.elevationHigh,
+        selectedLabelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
+
+      // Chip
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.primary50,
+        labelStyle: AppTextStyles.labelMd.copyWith(color: AppColors.primary),
+        side: const BorderSide(color: AppColors.primary200),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusRound),
+        ),
+      ),
+
+      // Divider
+      dividerTheme: const DividerThemeData(
+        color: AppColors.grey200,
+        thickness: AppDimens.dividerThickness,
+        space: AppDimens.md,
+      ),
+
+      // SnackBar
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.grey900,
+        contentTextStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.white),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+        ),
+      ),
+
+      // Dialog — pakai DialogThemeData (Flutter >= 3.22)
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.white,
+        elevation: AppDimens.elevationHigh,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+        ),
+        titleTextStyle: AppTextStyles.h3,
+        contentTextStyle: AppTextStyles.bodyMd,
+      ),
+
+      // FloatingActionButton
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.accent,
+        foregroundColor: AppColors.white,
+        elevation: AppDimens.elevationMedium,
+      ),
+
+      // Progress indicator
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.primary,
+        linearTrackColor: AppColors.primary100,
+      ),
+    );
+  }
+}
