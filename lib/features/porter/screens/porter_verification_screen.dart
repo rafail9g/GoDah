@@ -20,48 +20,46 @@ class PorterVerificationScreen extends StatefulWidget {
 }
 
 class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
-  File? _dokumenFile;
-  final _catatanCtrl = TextEditingController();
+  File? _fotoKtp;
   bool _loading = false;
   bool _submitted = false;
 
-  Future<void> _pickDocument() async {
+  // Ambil foto KTP pakai KAMERA langsung
+  Future<void> _ambilFotoKtp() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
+      source: ImageSource.camera, // kamera, bukan gallery
+      imageQuality: 85,
+      preferredCameraDevice: CameraDevice.rear,
     );
     if (picked != null) {
-      setState(() => _dokumenFile = File(picked.path));
+      setState(() => _fotoKtp = File(picked.path));
     }
   }
 
-  Future<void> _submit() async {
+  Future<void> _kirimVerifikasi() async {
     final auth = context.read<AuthProvider>();
     final porter = auth.currentPorter;
-    if (porter == null || _dokumenFile == null) return;
+    if (porter == null || _fotoKtp == null) return;
 
     setState(() => _loading = true);
 
     try {
-      // Upload dokumen ke Supabase Storage
       final fileName =
           'verifikasi/${porter.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       await _supabase.storage
           .from('dokumen-porter')
-          .upload(fileName, _dokumenFile!);
+          .upload(fileName, _fotoKtp!);
 
       final dokumenUrl = _supabase.storage
           .from('dokumen-porter')
           .getPublicUrl(fileName);
 
-      // Insert ke tabel porter_verifikasi
       await _supabase.from('porter_verifikasi').insert({
         'porter_id': porter.id,
         'status': 'menunggu',
         'dokumen_url': dokumenUrl,
-        'catatan_admin': null,
       });
 
       if (!mounted) return;
@@ -69,7 +67,6 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
         _loading = false;
         _submitted = true;
       });
-
       await auth.reloadPorterProfile();
     } catch (e) {
       if (!mounted) return;
@@ -85,10 +82,17 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final porter = auth.currentPorter;
-
+    final porter = context.watch<AuthProvider>().currentPorter;
     if (porter == null) return const SizedBox();
+
+    final sudahSubmit = _submitted || porter.statusVerifikasi != 'menunggu'
+        ? false // tampilkan form jika ditolak dan belum submit baru
+        : false;
+
+    // Kalau sudah disetujui, tidak perlu form lagi
+    final isApproved = porter.statusVerifikasi == 'disetujui';
+    final isRejected = porter.statusVerifikasi == 'ditolak';
+    final tampilForm = !isApproved && !_submitted;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -98,64 +102,107 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Status verifikasi
             _StatusBanner(status: porter.statusVerifikasi),
             const SizedBox(height: 24),
 
-            if (porter.isPending && !_submitted) ...[
-              Text('Upload Dokumen Identitas', style: AppTextStyles.h3),
-              const SizedBox(height: 8),
-              Text(
-                'Upload KTM (Kartu Tanda Mahasiswa) atau KTP yang masih berlaku. '
-                'Admin akan memverifikasi dokumen kamu dalam 1x24 jam.',
-                style:
-                    AppTextStyles.bodyMd.copyWith(color: AppColors.grey600),
+            if (tampilForm) ...[
+              // Info
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                  border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.camera_alt_outlined,
+                      color: AppColors.info,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isRejected
+                            ? 'Dokumen kamu ditolak. Foto ulang KTP/KTM yang jelas '
+                                  'dan kirim kembali untuk diverifikasi.'
+                            : 'Foto KTP atau KTM kamu menggunakan kamera. '
+                                  'Pastikan foto jelas dan tidak buram.',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.info,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Area upload
+              Text('Foto Dokumen Identitas', style: AppTextStyles.h4),
+              const SizedBox(height: 10),
+
+              // Area foto
               GestureDetector(
-                onTap: _pickDocument,
+                onTap: _ambilFotoKtp,
                 child: Container(
-                  height: 180,
+                  height: 200,
                   decoration: BoxDecoration(
                     color: AppColors.white,
                     borderRadius: BorderRadius.circular(AppDimens.radiusLg),
                     border: Border.all(
-                      color: _dokumenFile != null
+                      color: _fotoKtp != null
                           ? AppColors.success
                           : AppColors.grey300,
                       width: 2,
-                      style: BorderStyle.solid,
                     ),
                   ),
-                  child: _dokumenFile != null
+                  child: _fotoKtp != null
                       ? Stack(
                           children: [
                             ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppDimens.radiusLg),
+                              borderRadius: BorderRadius.circular(
+                                AppDimens.radiusLg,
+                              ),
                               child: Image.file(
-                                _dokumenFile!,
+                                _fotoKtp!,
                                 width: double.infinity,
                                 height: double.infinity,
                                 fit: BoxFit.cover,
                               ),
                             ),
+                            // Tombol foto ulang
                             Positioned(
-                              top: 8,
-                              right: 8,
+                              bottom: 10,
+                              right: 10,
                               child: GestureDetector(
-                                onTap: () =>
-                                    setState(() => _dokumenFile = null),
+                                onTap: _ambilFotoKtp,
                                 child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.error,
-                                    shape: BoxShape.circle,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
-                                  child: const Icon(Icons.close,
-                                      color: Colors.white, size: 16),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.grey900.withOpacity(0.7),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.camera_alt,
+                                        color: AppColors.white,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Foto Ulang',
+                                        style: AppTextStyles.labelSm.copyWith(
+                                          color: AppColors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -165,47 +212,52 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(
-                              Icons.cloud_upload_outlined,
+                              Icons.camera_alt_rounded,
                               size: 48,
                               color: AppColors.grey400,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             Text(
-                              'Tap untuk pilih foto dokumen',
-                              style: AppTextStyles.labelLg
-                                  .copyWith(color: AppColors.grey500),
+                              'Tap untuk buka kamera',
+                              style: AppTextStyles.labelLg.copyWith(
+                                color: AppColors.grey500,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Format JPG/PNG, maks. 5MB',
+                              'KTP atau KTM yang masih berlaku',
                               style: AppTextStyles.caption,
                             ),
                           ],
                         ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              ElevatedButton(
-                onPressed:
-                    (_dokumenFile == null || _loading) ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(AppDimens.buttonHeightMd),
-                ),
-                child: _loading
+              ElevatedButton.icon(
+                onPressed: (_fotoKtp == null || _loading)
+                    ? null
+                    : _kirimVerifikasi,
+                icon: _loading
                     ? const SizedBox(
-                        height: 20,
-                        width: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: AppColors.white,
                         ),
                       )
-                    : const Text('Kirim untuk Verifikasi'),
+                    : const Icon(Icons.send_rounded),
+                label: Text(
+                  _loading ? 'Mengirim...' : 'Kirim untuk Verifikasi',
+                ),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppDimens.buttonHeightMd),
+                ),
               ),
             ],
 
-            if (_submitted || porter.statusVerifikasi == 'menunggu') ...[
+            if (_submitted) ...[
               const SizedBox(height: 16),
               const _SubmittedInfo(),
             ],
@@ -224,23 +276,23 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final (color, icon, title, subtitle) = switch (status) {
       'disetujui' => (
-          AppColors.success,
-          Icons.verified_rounded,
-          'Akun Terverifikasi',
-          'Kamu sudah bisa menerima pesanan dari mahasiswa.',
-        ),
+        AppColors.success,
+        Icons.verified_rounded,
+        'Akun Terverifikasi',
+        'Kamu sudah bisa menerima pesanan dari mahasiswa.',
+      ),
       'ditolak' => (
-          AppColors.error,
-          Icons.cancel_rounded,
-          'Verifikasi Ditolak',
-          'Dokumen kamu ditolak. Upload ulang dokumen yang valid.',
-        ),
+        AppColors.error,
+        Icons.cancel_rounded,
+        'Verifikasi Ditolak',
+        'Dokumen ditolak. Silakan foto ulang dan kirim kembali.',
+      ),
       _ => (
-          AppColors.warning,
-          Icons.hourglass_top_rounded,
-          'Menunggu Verifikasi',
-          'Dokumen kamu sedang ditinjau oleh admin.',
-        ),
+        AppColors.warning,
+        Icons.hourglass_top_rounded,
+        'Menunggu Verifikasi',
+        'Dokumen sedang ditinjau admin. Tunggu 1x24 jam.',
+      ),
     };
 
     return Container(
@@ -258,15 +310,13 @@ class _StatusBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: AppTextStyles.h4.copyWith(color: color),
-                ),
+                Text(title, style: AppTextStyles.h4.copyWith(color: color)),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style:
-                      AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.grey700,
+                  ),
                 ),
               ],
             ),
@@ -284,14 +334,16 @@ class _SubmittedInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const Icon(Icons.check_circle_outline_rounded,
-            color: AppColors.success, size: 64),
+        const Icon(
+          Icons.check_circle_outline_rounded,
+          color: AppColors.success,
+          size: 64,
+        ),
         const SizedBox(height: 12),
         Text('Dokumen Berhasil Dikirim', style: AppTextStyles.h3),
         const SizedBox(height: 8),
         Text(
-          'Admin akan memverifikasi dokumen kamu dalam 1x24 jam. '
-          'Kamu akan mendapat notifikasi setelah diverifikasi.',
+          'Admin akan memverifikasi dalam 1x24 jam.',
           style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
           textAlign: TextAlign.center,
         ),

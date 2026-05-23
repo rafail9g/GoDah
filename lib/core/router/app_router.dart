@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../state/providers/auth_provider.dart';
@@ -15,81 +14,71 @@ import '../../features/admin/screens/admin_home_screen.dart';
 
 abstract class AppRouter {
   static GoRouter router(AuthProvider auth) => GoRouter(
-        initialLocation: '/splash',
-        refreshListenable: auth,
-        redirect: (context, state) {
-          final loc = state.matchedLocation;
+    initialLocation: '/splash',
+    refreshListenable: auth,
+    redirect: (context, state) {
+      final loc = state.matchedLocation;
 
-          // Halaman publik yang tidak perlu redirect
-          final isPublic = loc == '/splash' ||
-              loc == '/login' ||
-              loc == '/register' ||
-              loc == '/register/user' ||
-              loc == '/register/porter' ||
-              loc == '/admin/login';
+      // Masih loading session — tetap di splash
+      if (auth.isLoading) return '/splash';
 
-          if (auth.isLoading) return '/splash';
+      final isAuthPage =
+          loc == '/login' ||
+          loc == '/register' ||
+          loc == '/register/user' ||
+          loc == '/register/porter' ||
+          loc == '/admin/login';
 
-          if (!auth.isLoggedIn && !isPublic) return '/login';
+      // Admin login
+      if (auth.isAdminLoggedIn) {
+        if (loc == '/admin/login' || loc == '/splash') {
+          return '/admin/home';
+        }
+        return null;
+      }
 
-          if (auth.isLoggedIn) {
-            // Sudah login, jangan ke halaman auth
-            if (loc == '/login' ||
-                loc == '/register' ||
-                loc == '/register/user' ||
-                loc == '/register/porter' ||
-                loc == '/splash') {
-              return auth.role == 'porter' ? '/porter/home' : '/user/home';
-            }
-          }
+      // User/porter sudah login
+      if (auth.isLoggedIn) {
+        if (isAuthPage || loc == '/splash') {
+          return auth.role == 'porter' ? '/porter/home' : '/user/home';
+        }
+        return null;
+      }
 
-          if (auth.isAdminLoggedIn) {
-            if (loc == '/admin/login') return '/admin/home';
-          }
+      // Belum login — boleh ke halaman auth, redirect sisanya ke login
+      if (!isAuthPage && loc != '/splash') return '/login';
 
-          return null;
-        },
-        routes: [
-          GoRoute(
-            path: '/splash',
-            builder: (_, __) => const SplashScreen(),
-          ),
-          GoRoute(
-            path: '/login',
-            builder: (_, __) => const LoginScreen(),
-          ),
-          GoRoute(
-            path: '/register',
-            builder: (_, __) => const RolePickerScreen(),
-          ),
-          GoRoute(
-            path: '/register/user',
-            builder: (_, __) => const RegisterUserScreen(),
-          ),
-          GoRoute(
-            path: '/register/porter',
-            builder: (_, __) => const RegisterPorterScreen(),
-          ),
-          GoRoute(
-            path: '/user/home',
-            builder: (_, __) => const UserHomeScreen(),
-          ),
-          GoRoute(
-            path: '/porter/home',
-            builder: (_, __) => const PorterHomeScreen(),
-          ),
-          GoRoute(
-            path: '/porter/verification',
-            builder: (_, __) => const PorterVerificationScreen(),
-          ),
-          GoRoute(
-            path: '/admin/login',
-            builder: (_, __) => const AdminLoginScreen(),
-          ),
-          GoRoute(
-            path: '/admin/home',
-            builder: (_, __) => const AdminHomeScreen(),
-          ),
-        ],
-      );
+      // Dari splash tanpa session → ke login
+      if (loc == '/splash') return '/login';
+
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, __) => const RolePickerScreen()),
+      GoRoute(
+        path: '/register/user',
+        builder: (_, __) => const RegisterUserScreen(),
+      ),
+      GoRoute(
+        path: '/register/porter',
+        builder: (_, __) => const RegisterPorterScreen(),
+      ),
+      GoRoute(path: '/user/home', builder: (_, __) => const UserHomeScreen()),
+      GoRoute(
+        path: '/porter/home',
+        builder: (_, __) => const PorterHomeScreen(),
+      ),
+      GoRoute(
+        path: '/porter/verification',
+        builder: (_, __) => const PorterVerificationScreen(),
+      ),
+      GoRoute(
+        path: '/admin/login',
+        builder: (_, __) => const AdminLoginScreen(),
+      ),
+      GoRoute(path: '/admin/home', builder: (_, __) => const AdminHomeScreen()),
+    ],
+  );
 }
