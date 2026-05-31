@@ -40,6 +40,13 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
     super.dispose();
   }
 
+  // FIX: validator confirmPassword harus dibaca saat validasi, bukan saat build
+  String? _validateConfirmPass(String? value) {
+    if (value == null || value.isEmpty) return AppStrings.validRequired;
+    if (value != _passCtrl.text) return AppStrings.validPasswordMatch;
+    return null;
+  }
+
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
@@ -81,10 +88,7 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Buat Akun Baru',
-                style: AppTextStyles.h2,
-              ),
+              Text('Buat Akun Baru', style: AppTextStyles.h2),
               const SizedBox(height: 4),
               Text(
                 'Isi data diri kamu untuk mulai menggunakan Go-Dah',
@@ -130,7 +134,7 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
               AuthTextField(
                 controller: _passCtrl,
                 label: AppStrings.password,
-                hint: 'Minimal 6 karakter',
+                hint: 'Minimal 8 karakter',
                 obscureText: _obscurePass,
                 prefixIcon: Icons.lock_outline_rounded,
                 validator: Validators.password,
@@ -141,8 +145,7 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
                         : Icons.visibility_off_outlined,
                     color: AppColors.grey400,
                   ),
-                  onPressed: () =>
-                      setState(() => _obscurePass = !_obscurePass),
+                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
                 ),
               ),
               const SizedBox(height: 14),
@@ -152,7 +155,8 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
                 hint: 'Ulangi password',
                 obscureText: _obscureConfirm,
                 prefixIcon: Icons.lock_outline_rounded,
-                validator: Validators.confirmPassword(_passCtrl.text),
+                // FIX: pakai method lokal, bukan closure yang di-capture saat build
+                validator: _validateConfirmPass,
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureConfirm

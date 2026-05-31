@@ -1,6 +1,3 @@
-// ══════════════════════════════════════════════════════════
-// admin_login_screen.dart
-// ══════════════════════════════════════════════════════════
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -72,18 +69,27 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
+
+                // Icon
                 Center(
                   child: Container(
-                    width: 64,
-                    height: 64,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.admin_panel_settings_rounded,
                       color: AppColors.white,
-                      size: 36,
+                      size: 38,
                     ),
                   ),
                 ),
@@ -96,12 +102,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Login khusus administrator Go-Dah',
-                  style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.grey500,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
 
-                // Form dengan background terang
+                // Form card
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -109,6 +117,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     borderRadius: BorderRadius.circular(AppDimens.radiusXl),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       AuthTextField(
                         controller: _emailCtrl,
@@ -133,8 +142,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                 : Icons.visibility_off_outlined,
                             color: AppColors.grey400,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -160,6 +168,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+
                 TextButton(
                   onPressed: () => context.go('/login'),
                   child: Text(

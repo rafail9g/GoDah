@@ -38,6 +38,13 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
     super.dispose();
   }
 
+  // FIX: baca _passCtrl.text saat validasi berlangsung, bukan saat build
+  String? _validateConfirmPass(String? value) {
+    if (value == null || value.isEmpty) return AppStrings.validRequired;
+    if (value != _passCtrl.text) return AppStrings.validPasswordMatch;
+    return null;
+  }
+
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
@@ -88,15 +95,19 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline_rounded,
-                        color: AppColors.info, size: 20),
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      color: AppColors.info,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Setelah daftar, kamu perlu upload dokumen verifikasi '
                         'di halaman profil sebelum bisa menerima order.',
-                        style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.info),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.info,
+                        ),
                       ),
                     ),
                   ],
@@ -142,7 +153,7 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
               AuthTextField(
                 controller: _passCtrl,
                 label: AppStrings.password,
-                hint: 'Minimal 6 karakter',
+                hint: 'Minimal 8 karakter',
                 obscureText: _obscurePass,
                 prefixIcon: Icons.lock_outline_rounded,
                 validator: Validators.password,
@@ -153,8 +164,7 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
                         : Icons.visibility_off_outlined,
                     color: AppColors.grey400,
                   ),
-                  onPressed: () =>
-                      setState(() => _obscurePass = !_obscurePass),
+                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
                 ),
               ),
               const SizedBox(height: 14),
@@ -164,7 +174,8 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
                 hint: 'Ulangi password',
                 obscureText: _obscureConfirm,
                 prefixIcon: Icons.lock_outline_rounded,
-                validator: Validators.confirmPassword(_passCtrl.text),
+                // FIX: pakai method lokal supaya baca nilai terbaru _passCtrl
+                validator: _validateConfirmPass,
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureConfirm

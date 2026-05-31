@@ -26,7 +26,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isPorterVerified => _currentPorter?.statusVerifikasi == 'disetujui';
 
   // ── Init ─────────────────────────────────────────────────────────
-  // FIX: isLoading harus false setelah init, bukan stuck di splash
   Future<void> init() async {
     _isLoading = true;
     notifyListeners();
@@ -39,7 +38,7 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
 
     _isLoading = false;
-    notifyListeners(); // <-- ini yang bikin router redirect dari splash
+    notifyListeners();
 
     _supabase.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
@@ -58,35 +57,50 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  // ── _loadProfile: retry 3x saja, jeda 1 detik ────────────────────
+  // Cukup untuk nunggu trigger Supabase, tidak spam request
   Future<void> _loadProfile(String uid) async {
-    try {
-      final userRes = await _supabase
-          .from('users')
-          .select()
-          .eq('id', uid)
-          .maybeSingle();
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final userRes = await _supabase
+            .from('users')
+            .select()
+            .eq('id', uid)
+            .maybeSingle();
 
-      if (userRes != null) {
-        _currentUser = UserModel.fromJson(userRes);
-        _currentPorter = null;
-        _role = 'user';
-        return;
+        if (userRes != null) {
+          _currentUser = UserModel.fromJson(userRes);
+          _currentPorter = null;
+          _role = 'user';
+          return;
+        }
+
+        final porterRes = await _supabase
+            .from('porters')
+            .select()
+            .eq('id', uid)
+            .maybeSingle();
+
+        if (porterRes != null) {
+          _currentPorter = PorterModel.fromJson(porterRes);
+          _currentUser = null;
+          _role = 'porter';
+          return;
+        }
+
+        // Belum ada → tunggu trigger Supabase
+        if (attempt < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      } catch (_) {
+        if (attempt < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
       }
-
-      final porterRes = await _supabase
-          .from('porters')
-          .select()
-          .eq('id', uid)
-          .maybeSingle();
-
-      if (porterRes != null) {
-        _currentPorter = PorterModel.fromJson(porterRes);
-        _currentUser = null;
-        _role = 'porter';
-      }
-    } catch (_) {}
+    }
   }
 
+  // ── Register User ─────────────────────────────────────────────────
   Future<AppResult<UserModel>> registerUser({
     required String nama,
     required String email,
@@ -105,16 +119,33 @@ class AuthProvider extends ChangeNotifier {
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
-      if (alamat != null && alamat.isNotEmpty) {
+      // Tunggu trigger selesai (3x retry, 1 detik jeda)
+      await _loadProfile(res.user!.id);
+
+      // Fallback: insert manual kalau trigger belum jalan
+      if (_currentUser == null) {
+        await _supabase.from('users').upsert({
+          'id': res.user!.id,
+          'nama': nama,
+          'email': email,
+          'no_hp': noHp,
+          'password_hash': 'supabase_managed',
+          if (alamat != null && alamat.isNotEmpty) 'alamat': alamat,
+        });
+        // Satu kali load lagi setelah insert manual
+        await _loadProfile(res.user!.id);
+      } else if (alamat != null && alamat.isNotEmpty) {
+        // Update alamat kalau trigger sudah isi row tapi belum ada alamat
         await _supabase
             .from('users')
             .update({'alamat': alamat})
             .eq('id', res.user!.id);
       }
 
-      await _loadProfile(res.user!.id);
       if (_currentUser == null) {
-        return Failure(AppError(message: 'Gagal memuat profil.'));
+        return Failure(
+          AppError(message: 'Gagal memuat profil. Coba login ulang.'),
+        );
       }
       return Success(_currentUser!);
     } on AuthException catch (e) {
@@ -124,6 +155,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Register Porter ───────────────────────────────────────────────
   Future<AppResult<PorterModel>> registerPorter({
     required String nama,
     required String email,
@@ -141,9 +173,24 @@ class AuthProvider extends ChangeNotifier {
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
+      // Tunggu trigger selesai
       await _loadProfile(res.user!.id);
+
+      // Fallback: insert manual
       if (_currentPorter == null) {
-        return Failure(AppError(message: 'Gagal memuat profil porter.'));
+        await _supabase.from('porters').upsert({
+          'id': res.user!.id,
+          'nama': nama,
+          'email': email,
+          'no_hp': noHp,
+        });
+        await _loadProfile(res.user!.id);
+      }
+
+      if (_currentPorter == null) {
+        return Failure(
+          AppError(message: 'Gagal memuat profil. Coba login ulang.'),
+        );
       }
       return Success(_currentPorter!);
     } on AuthException catch (e) {
@@ -153,6 +200,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Login User/Porter ─────────────────────────────────────────────
   Future<AppResult<String>> login({
     required String email,
     required String password,
@@ -168,7 +216,14 @@ class AuthProvider extends ChangeNotifier {
       }
 
       await _loadProfile(res.user!.id);
-      return Success(_role ?? 'user');
+
+      if (_role == null) {
+        return Failure(
+          AppError(message: 'Akun tidak ditemukan. Hubungi admin.'),
+        );
+      }
+
+      return Success(_role!);
     } on AuthException catch (e) {
       return Failure(AppError(message: _translateAuthError(e.message)));
     } catch (e) {
@@ -176,6 +231,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Login Admin ───────────────────────────────────────────────────
   Future<AppResult<AdminModel>> loginAdmin({
     required String email,
     required String password,
@@ -199,33 +255,46 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Logout ────────────────────────────────────────────────────────
   Future<void> logout() async {
     if (_currentAdmin != null) {
       _currentAdmin = null;
       notifyListeners();
       return;
     }
+    _currentUser = null;
+    _currentPorter = null;
+    _role = null;
+    notifyListeners();
     await _supabase.auth.signOut();
   }
 
+  // ── Reload Porter Profile ─────────────────────────────────────────
   Future<void> reloadPorterProfile() async {
     if (_currentPorter == null) return;
     await _loadProfile(_currentPorter!.id);
     notifyListeners();
   }
 
+  // ── Translate Auth Error ──────────────────────────────────────────
   String _translateAuthError(String msg) {
-    if (msg.contains('already registered') || msg.contains('already exists')) {
+    if (msg.contains('already registered') ||
+        msg.contains('already exists') ||
+        msg.contains('User already registered')) {
       return 'Email sudah terdaftar. Silakan login.';
     }
-    if (msg.contains('Invalid login credentials')) {
+    if (msg.contains('Invalid login credentials') ||
+        msg.contains('invalid_credentials')) {
       return 'Email atau password salah.';
     }
     if (msg.contains('Email not confirmed')) {
       return 'Email belum dikonfirmasi. Cek inbox kamu.';
     }
     if (msg.contains('Password should be')) {
-      return 'Password minimal 6 karakter.';
+      return 'Password minimal 8 karakter.';
+    }
+    if (msg.contains('rate limit') || msg.contains('too many requests')) {
+      return 'Terlalu banyak percobaan. Tunggu 1 jam lalu coba lagi.';
     }
     return msg;
   }

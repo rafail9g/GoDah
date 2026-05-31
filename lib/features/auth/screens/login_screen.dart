@@ -80,16 +80,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Logo & judul
                 Center(
                   child: Container(
-                    width: 64,
-                    height: 64,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.local_shipping_rounded,
                       color: AppColors.white,
-                      size: 36,
+                      size: 38,
                     ),
                   ),
                 ),
@@ -109,61 +116,78 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // Form
-                AuthTextField(
-                  controller: _emailCtrl,
-                  label: AppStrings.email,
-                  hint: 'contoh@email.com',
-                  keyboardType: TextInputType.emailAddress,
-                  validator: Validators.email,
-                  prefixIcon: Icons.email_outlined,
-                ),
-                const SizedBox(height: 16),
-                AuthTextField(
-                  controller: _passCtrl,
-                  label: AppStrings.password,
-                  hint: 'Minimal 6 karakter',
-                  obscureText: _obscure,
-                  validator: Validators.required,
-                  prefixIcon: Icons.lock_outline_rounded,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppColors.grey400,
-                    ),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                // Form card
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.06),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {}, // TODO: forgot password
-                    child: Text(AppStrings.forgotPassword),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Tombol login
-                ElevatedButton(
-                  onPressed: _loading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(
-                      AppDimens.buttonHeightMd,
-                    ),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AuthTextField(
+                        controller: _emailCtrl,
+                        label: AppStrings.email,
+                        hint: 'contoh@email.com',
+                        keyboardType: TextInputType.emailAddress,
+                        validator: Validators.email,
+                        prefixIcon: Icons.email_outlined,
+                      ),
+                      const SizedBox(height: 16),
+                      AuthTextField(
+                        controller: _passCtrl,
+                        label: AppStrings.password,
+                        hint: 'Masukkan password',
+                        obscureText: _obscure,
+                        validator: Validators.required,
+                        prefixIcon: Icons.lock_outline_rounded,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: AppColors.grey400,
                           ),
-                        )
-                      : Text(AppStrings.login),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {},
+                          child: Text(AppStrings.forgotPassword),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _loading ? null : _login,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(
+                            AppDimens.buttonHeightMd,
+                          ),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.white,
+                                ),
+                              )
+                            : Text(AppStrings.login),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
 

@@ -34,14 +34,21 @@ abstract final class Validators {
     return null;
   }
 
-  static String? Function(String?) confirmPassword(String? original) {
-    return (String? value) {
-      final r = required(value);
-      if (r != null) return r;
-      if (value != original) return AppStrings.validPasswordMatch;
-      return null;
-    };
-  }
+  // ── CATATAN: confirmPassword TIDAK ada di sini ──────────────────────
+  // Jangan pakai closure untuk confirm password karena Flutter Form
+  // men-cache validator saat build. Nilai yang di-capture adalah nilai
+  // kosong pada saat build, bukan nilai terbaru saat submit.
+  //
+  // Cara benar: buat method instance di dalam State:
+  //
+  //   String? _validateConfirmPass(String? value) {
+  //     if (value == null || value.isEmpty) return AppStrings.validRequired;
+  //     if (value != _passCtrl.text) return AppStrings.validPasswordMatch;
+  //     return null;
+  //   }
+  //
+  // Lalu gunakan: validator: _validateConfirmPass
+  // ──────────────────────────────────────────────────────────────────
 
   // ── Min/Max length ─────────────────────────────────────────────────
   static String? Function(String?) minLength(int min) {
@@ -80,7 +87,9 @@ abstract final class Validators {
   }
 
   // ── Compose: gabungkan beberapa validator ──────────────────────────
-  static String? Function(String?) compose(List<String? Function(String?)> validators) {
+  static String? Function(String?) compose(
+    List<String? Function(String?)> validators,
+  ) {
     return (String? value) {
       for (final v in validators) {
         final result = v(value);
