@@ -15,8 +15,6 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = true;
   String? _role;
 
-  // Flag untuk mencegah race condition: jika login() sedang jalan,
-  // onAuthStateChange tidak ikut-ikutan load profile lagi
   bool _isManualLogin = false;
 
   UserModel? get currentUser => _currentUser;
@@ -29,7 +27,15 @@ class AuthProvider extends ChangeNotifier {
   bool get isAdminLoggedIn => _currentAdmin != null;
   bool get isPorterVerified => _currentPorter?.statusVerifikasi == 'disetujui';
 
-  // ── Init ─────────────────────────────────────────────────────────
+  bool get hasSupabaseSession => _supabase.auth.currentUser != null;
+
+  bool get needsRoleSelection =>
+      hasSupabaseSession &&
+      _currentUser == null &&
+      _currentPorter == null &&
+      _currentAdmin == null &&
+      _role == null;
+
   Future<void> init() async {
     _isLoading = true;
     notifyListeners();
@@ -48,25 +54,30 @@ class AuthProvider extends ChangeNotifier {
       final event = data.event;
 
       if (event == AuthChangeEvent.signedIn && data.session != null) {
-        // Kalau sedang manual login, skip — login() sudah handle sendiri
         if (_isManualLogin) return;
 
         _isLoading = true;
         notifyListeners();
+
         await _loadProfile(data.session!.user.id);
+
         _isLoading = false;
         notifyListeners();
       } else if (event == AuthChangeEvent.signedOut) {
         _currentUser = null;
         _currentPorter = null;
+        _currentAdmin = null;
         _role = null;
         notifyListeners();
       }
     });
   }
 
-  // ── _loadProfile ──────────────────────────────────────────────────
   Future<void> _loadProfile(String uid) async {
+    _currentUser = null;
+    _currentPorter = null;
+    _role = null;
+
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
         final userRes = await _supabase
@@ -106,7 +117,63 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Register User ─────────────────────────────────────────────────
+  Future<AppResult<String>> completeGoogleProfile({
+    required String role,
+    required String nama,
+    required String noHp,
+  }) async {
+    try {
+      final authUser = _supabase.auth.currentUser;
+
+      if (authUser == null) {
+        return Failure(AppError(message: 'Session Google tidak ditemukan.'));
+      }
+
+      final email = authUser.email;
+
+      if (email == null || email.isEmpty) {
+        return Failure(AppError(message: 'Email Google tidak ditemukan.'));
+      }
+
+      if (role == 'porter') {
+        await _supabase.from('porters').upsert({
+          'id': authUser.id,
+          'nama': nama,
+          'email': email,
+          'no_hp': noHp,
+        });
+
+        await _loadProfile(authUser.id);
+
+        if (_currentPorter == null) {
+          return Failure(AppError(message: 'Gagal membuat profil porter.'));
+        }
+
+        notifyListeners();
+        return Success('porter');
+      }
+
+      await _supabase.from('users').upsert({
+        'id': authUser.id,
+        'nama': nama,
+        'email': email,
+        'no_hp': noHp,
+        'password_hash': 'google_oauth',
+      });
+
+      await _loadProfile(authUser.id);
+
+      if (_currentUser == null) {
+        return Failure(AppError(message: 'Gagal membuat profil mahasiswa.'));
+      }
+
+      notifyListeners();
+      return Success('user');
+    } catch (e) {
+      return Failure(AppError.fromException(e));
+    }
+  }
+
   Future<AppResult<UserModel>> registerUser({
     required String nama,
     required String email,
@@ -116,6 +183,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     try {
       _isManualLogin = true;
+
       final res = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -138,6 +206,7 @@ class AuthProvider extends ChangeNotifier {
           'password_hash': 'supabase_managed',
           if (alamat != null && alamat.isNotEmpty) 'alamat': alamat,
         });
+
         await _loadProfile(res.user!.id);
       } else if (alamat != null && alamat.isNotEmpty) {
         await _supabase
@@ -165,7 +234,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Register Porter ───────────────────────────────────────────────
   Future<AppResult<PorterModel>> registerPorter({
     required String nama,
     required String email,
@@ -174,6 +242,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     try {
       _isManualLogin = true;
+
       final res = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -194,6 +263,7 @@ class AuthProvider extends ChangeNotifier {
           'email': email,
           'no_hp': noHp,
         });
+
         await _loadProfile(res.user!.id);
       }
 
@@ -216,13 +286,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Login User/Porter ─────────────────────────────────────────────
   Future<AppResult<String>> login({
     required String email,
     required String password,
   }) async {
     try {
-      // Set flag dulu sebelum signIn agar onAuthStateChange tidak ikut jalan
       _isManualLogin = true;
 
       final res = await _supabase.auth.signInWithPassword(
@@ -245,10 +313,7 @@ class AuthProvider extends ChangeNotifier {
         );
       }
 
-      // Notify SETELAH _isManualLogin = false dan state sudah lengkap
-      // GoRouter akan redirect otomatis via refreshListenable
       notifyListeners();
-
       return Success(_role!);
     } on AuthException catch (e) {
       _isManualLogin = false;
@@ -259,7 +324,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Login Admin ───────────────────────────────────────────────────
   Future<AppResult<AdminModel>> loginAdmin({
     required String email,
     required String password,
@@ -276,12 +340,14 @@ class AuthProvider extends ChangeNotifier {
       }
 
       final storedPassword = res['password_hash'] as String? ?? '';
+
       if (storedPassword != password) {
         return Failure(AppError(message: 'Email atau password salah.'));
       }
 
       _currentAdmin = AdminModel.fromJson(res);
       notifyListeners();
+
       return Success(_currentAdmin!);
     } on PostgrestException catch (e) {
       if (e.code == '42501' || e.message.contains('permission')) {
@@ -291,53 +357,59 @@ class AuthProvider extends ChangeNotifier {
           ),
         );
       }
+
       return Failure(AppError(message: 'Terjadi kesalahan: ${e.message}'));
     } catch (e) {
       return Failure(AppError.fromException(e));
     }
   }
 
-  // ── Logout ────────────────────────────────────────────────────────
   Future<void> logout() async {
     if (_currentAdmin != null) {
       _currentAdmin = null;
       notifyListeners();
       return;
     }
+
     _currentUser = null;
     _currentPorter = null;
     _role = null;
     notifyListeners();
+
     await _supabase.auth.signOut();
   }
 
-  // ── Reload Porter Profile ─────────────────────────────────────────
   Future<void> reloadPorterProfile() async {
     if (_currentPorter == null) return;
+
     await _loadProfile(_currentPorter!.id);
     notifyListeners();
   }
 
-  // ── Translate Auth Error ──────────────────────────────────────────
   String _translateAuthError(String msg) {
     if (msg.contains('already registered') ||
         msg.contains('already exists') ||
         msg.contains('User already registered')) {
       return 'Email sudah terdaftar. Silakan login.';
     }
+
     if (msg.contains('Invalid login credentials') ||
         msg.contains('invalid_credentials')) {
       return 'Email atau password salah.';
     }
+
     if (msg.contains('Email not confirmed')) {
       return 'Email belum dikonfirmasi. Cek inbox kamu.';
     }
+
     if (msg.contains('Password should be')) {
       return 'Password minimal 8 karakter.';
     }
+
     if (msg.contains('rate limit') || msg.contains('too many requests')) {
       return 'Terlalu banyak percobaan. Tunggu 1 jam lalu coba lagi.';
     }
+
     return msg;
   }
 }

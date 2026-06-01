@@ -718,7 +718,7 @@ class _CompletedOrderCard extends StatelessWidget {
                       height: 120,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, err, _s) => Container(
+                      errorBuilder: (_, err, s) => Container(
                         height: 80,
                         color: AppColors.grey100,
                         child: const Center(

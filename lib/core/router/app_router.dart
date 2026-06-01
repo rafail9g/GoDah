@@ -18,7 +18,6 @@ abstract class AppRouter {
     redirect: (context, state) {
       final loc = state.matchedLocation;
 
-      // Masih loading session — tetap di splash
       if (auth.isLoading) {
         return loc == '/splash' ? null : '/splash';
       }
@@ -30,37 +29,42 @@ abstract class AppRouter {
           loc == '/register/porter';
 
       final isSplash = loc == '/splash';
+      final isChooseRole = loc == '/choose-role';
 
-      // ── Admin sudah login ──────────────────────────────────────
+      if (auth.needsRoleSelection) {
+        return isChooseRole ? null : '/choose-role';
+      }
+
       if (auth.isAdminLoggedIn) {
-        if (isAuthRoute || isSplash) return '/admin/home';
+        if (isAuthRoute || isSplash || isChooseRole) {
+          return '/admin/home';
+        }
+
         return null;
       }
 
-      // ── User/porter sudah login ────────────────────────────────
       if (auth.isLoggedIn) {
-        // Kalau masih di halaman auth atau splash, arahkan ke home
-        if (isAuthRoute || isSplash) {
+        if (isAuthRoute || isSplash || isChooseRole) {
           return auth.role == 'porter' ? '/porter/home' : '/user/home';
         }
-        // Sudah di halaman yang benar, biarkan
+
         return null;
       }
 
-      // ── Belum login ────────────────────────────────────────────
-      // Boleh akses halaman auth
       if (isAuthRoute) return null;
 
-      // Dari splash tanpa session → ke login
       if (isSplash) return '/login';
 
-      // Halaman lain tanpa login → redirect ke login
       return '/login';
     },
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RolePickerScreen()),
+      GoRoute(
+        path: '/choose-role',
+        builder: (_, __) => const RolePickerScreen(isGoogleCompletion: true),
+      ),
       GoRoute(
         path: '/register/user',
         builder: (_, __) => const RegisterUserScreen(),

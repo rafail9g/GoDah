@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -8,7 +10,6 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/validators.dart';
 import '../../../state/providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
-import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
+  bool _googleLoading = false;
 
   @override
   void dispose() {
@@ -39,32 +41,23 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
 
-    // 1. Coba login sebagai admin dulu
     final adminResult = await auth.loginAdmin(email: email, password: password);
 
     if (!mounted) return;
 
     if (adminResult.isSuccess) {
-      // GoRouter akan redirect otomatis via refreshListenable
-      // tapi admin tidak pakai Supabase Auth jadi manual go
       setState(() => _loading = false);
       context.go('/admin/home');
       return;
     }
 
-    // 2. Login sebagai user/porter
     final userResult = await auth.login(email: email, password: password);
 
     if (!mounted) return;
     setState(() => _loading = false);
 
     userResult.when(
-      success: (_) {
-        // ✅ JANGAN pakai context.go() di sini
-        // GoRouter sudah listen ke auth via refreshListenable
-        // dan akan redirect otomatis karena notifyListeners() sudah dipanggil
-        // di dalam auth.login() sebelum return
-      },
+      success: (_) {},
       failure: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -74,6 +67,30 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
+  }
+
+  Future<void> _loginWithGoogle() async {
+    setState(() => _googleLoading = true);
+
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'http://localhost:3000',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal login dengan Google: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _googleLoading = false);
+      }
+    }
   }
 
   @override
@@ -112,13 +129,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 20),
+
                 Text(
                   'Selamat Datang',
                   style: AppTextStyles.h1,
                   textAlign: TextAlign.center,
                 ),
+
                 const SizedBox(height: 8),
+
                 Text(
                   'Login ke akun Go-Dah kamu',
                   style: AppTextStyles.bodyMd.copyWith(
@@ -126,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+
                 const SizedBox(height: 40),
 
                 Container(
@@ -152,7 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         validator: Validators.email,
                         prefixIcon: Icons.email_outlined,
                       ),
+
                       const SizedBox(height: 16),
+
                       AuthTextField(
                         controller: _passCtrl,
                         label: AppStrings.password,
@@ -167,10 +191,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Icons.visibility_off_outlined,
                             color: AppColors.grey400,
                           ),
-                          onPressed: () => setState(() => _obscure = !_obscure),
+                          onPressed: () {
+                            setState(() => _obscure = !_obscure);
+                          },
                         ),
                       ),
+
                       const SizedBox(height: 8),
+
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
@@ -178,7 +206,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text(AppStrings.forgotPassword),
                         ),
                       ),
+
                       const SizedBox(height: 8),
+
                       ElevatedButton(
                         onPressed: _loading ? null : _login,
                         style: ElevatedButton.styleFrom(
@@ -197,9 +227,55 @@ class _LoginScreenState extends State<LoginScreen> {
                               )
                             : Text(AppStrings.login),
                       ),
+
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: AppColors.grey300)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'atau',
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.grey500,
+                              ),
+                            ),
+                          ),
+                          Expanded(child: Divider(color: AppColors.grey300)),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      OutlinedButton.icon(
+                        onPressed: _googleLoading ? null : _loginWithGoogle,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(
+                            AppDimens.buttonHeightMd,
+                          ),
+                          side: BorderSide(color: AppColors.grey300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppDimens.radiusMd,
+                            ),
+                          ),
+                        ),
+                        icon: _googleLoading
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.g_mobiledata_rounded, size: 28),
+                        label: const Text('Masuk dengan Google'),
+                      ),
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 24),
 
                 Row(

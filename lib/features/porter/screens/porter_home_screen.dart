@@ -1,14 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_strings.dart';
-import '../../../core/constants/app_text_styles.dart';
-import '../../../state/providers/auth_provider.dart';
-import '../../../state/models/porter_model.dart';
 import 'porter_dashboard_tab.dart';
 import 'porter_history_tab.dart';
 import 'porter_profile_tab.dart';
