@@ -57,8 +57,7 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  // ── _loadProfile: retry 3x saja, jeda 1 detik ────────────────────
-  // Cukup untuk nunggu trigger Supabase, tidak spam request
+  // ── _loadProfile: retry 3x, jeda 1 detik ─────────────────────────
   Future<void> _loadProfile(String uid) async {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
@@ -88,7 +87,6 @@ class AuthProvider extends ChangeNotifier {
           return;
         }
 
-        // Belum ada → tunggu trigger Supabase
         if (attempt < 2) {
           await Future.delayed(const Duration(seconds: 1));
         }
@@ -119,10 +117,8 @@ class AuthProvider extends ChangeNotifier {
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
-      // Tunggu trigger selesai (3x retry, 1 detik jeda)
       await _loadProfile(res.user!.id);
 
-      // Fallback: insert manual kalau trigger belum jalan
       if (_currentUser == null) {
         await _supabase.from('users').upsert({
           'id': res.user!.id,
@@ -132,10 +128,8 @@ class AuthProvider extends ChangeNotifier {
           'password_hash': 'supabase_managed',
           if (alamat != null && alamat.isNotEmpty) 'alamat': alamat,
         });
-        // Satu kali load lagi setelah insert manual
         await _loadProfile(res.user!.id);
       } else if (alamat != null && alamat.isNotEmpty) {
-        // Update alamat kalau trigger sudah isi row tapi belum ada alamat
         await _supabase
             .from('users')
             .update({'alamat': alamat})
@@ -173,10 +167,8 @@ class AuthProvider extends ChangeNotifier {
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
-      // Tunggu trigger selesai
       await _loadProfile(res.user!.id);
 
-      // Fallback: insert manual
       if (_currentPorter == null) {
         await _supabase.from('porters').upsert({
           'id': res.user!.id,
@@ -232,24 +224,49 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ── Login Admin ───────────────────────────────────────────────────
+  // Admin login tidak pakai Supabase Auth, tapi query langsung ke tabel admins.
+  // PENTING: Pastikan RLS policy sudah dibuat di Supabase:
+  //   CREATE POLICY "Allow admin login"
+  //     ON admins FOR SELECT
+  //     TO anon, authenticated
+  //     USING (true);
   Future<AppResult<AdminModel>> loginAdmin({
     required String email,
     required String password,
   }) async {
     try {
+      // Query berdasarkan email dulu
       final res = await _supabase
           .from('admins')
           .select()
-          .eq('email', email)
+          .eq('email', email.toLowerCase().trim())
           .maybeSingle();
 
-      if (res == null || res['password_hash'] != password) {
+      // Email tidak ditemukan — kembalikan failure tanpa pesan spesifik
+      // supaya attacker tidak bisa tebak apakah email valid
+      if (res == null) {
+        return Failure(AppError(message: 'Email atau password salah.'));
+      }
+
+      // Cek password (plain text — idealnya pakai bcrypt di production)
+      final storedPassword = res['password_hash'] as String? ?? '';
+      if (storedPassword != password) {
         return Failure(AppError(message: 'Email atau password salah.'));
       }
 
       _currentAdmin = AdminModel.fromJson(res);
       notifyListeners();
       return Success(_currentAdmin!);
+    } on PostgrestException catch (e) {
+      // RLS mungkin memblokir query — berikan pesan yang informatif
+      if (e.code == '42501' || e.message.contains('permission')) {
+        return Failure(
+          AppError(
+            message: 'Konfigurasi server bermasalah. Hubungi developer.',
+          ),
+        );
+      }
+      return Failure(AppError(message: 'Terjadi kesalahan: ${e.message}'));
     } catch (e) {
       return Failure(AppError.fromException(e));
     }

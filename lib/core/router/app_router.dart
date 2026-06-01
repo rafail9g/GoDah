@@ -9,7 +9,6 @@ import '../../features/auth/screens/role_picker_screen.dart';
 import '../../features/user/screens/user_home_screen.dart';
 import '../../features/porter/screens/porter_home_screen.dart';
 import '../../features/porter/screens/porter_verification_screen.dart';
-import '../../features/admin/screens/admin_login_screen.dart';
 import '../../features/admin/screens/admin_home_screen.dart';
 
 abstract class AppRouter {
@@ -26,14 +25,11 @@ abstract class AppRouter {
           loc == '/login' ||
           loc == '/register' ||
           loc == '/register/user' ||
-          loc == '/register/porter' ||
-          loc == '/admin/login';
+          loc == '/register/porter';
 
-      // Admin login
+      // Admin sudah login
       if (auth.isAdminLoggedIn) {
-        if (loc == '/admin/login' || loc == '/splash') {
-          return '/admin/home';
-        }
+        if (isAuthPage || loc == '/splash') return '/admin/home';
         return null;
       }
 
@@ -73,10 +69,6 @@ abstract class AppRouter {
       GoRoute(
         path: '/porter/verification',
         builder: (_, __) => const PorterVerificationScreen(),
-      ),
-      GoRoute(
-        path: '/admin/login',
-        builder: (_, __) => const AdminLoginScreen(),
       ),
       GoRoute(path: '/admin/home', builder: (_, __) => const AdminHomeScreen()),
     ],

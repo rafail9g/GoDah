@@ -36,15 +36,27 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     final auth = context.read<AuthProvider>();
-    final result = await auth.login(
-      email: _emailCtrl.text.trim(),
-      password: _passCtrl.text,
-    );
+    final email = _emailCtrl.text.trim();
+    final password = _passCtrl.text;
+
+    // 1. Coba login sebagai admin dulu
+    final adminResult = await auth.loginAdmin(email: email, password: password);
+
+    if (!mounted) return;
+
+    if (adminResult.isSuccess) {
+      setState(() => _loading = false);
+      context.go('/admin/home');
+      return;
+    }
+
+    // 2. Kalau bukan admin, coba login sebagai user/porter
+    final userResult = await auth.login(email: email, password: password);
 
     if (!mounted) return;
     setState(() => _loading = false);
 
-    result.when(
+    userResult.when(
       success: (role) {
         if (role == 'porter') {
           context.go('/porter/home');
@@ -201,20 +213,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(' Daftar', style: AppTextStyles.link),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-
-                // Login admin
-                Center(
-                  child: TextButton(
-                    onPressed: () => context.push('/admin/login'),
-                    child: Text(
-                      'Login sebagai Admin',
-                      style: AppTextStyles.bodyMd.copyWith(
-                        color: AppColors.grey500,
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
