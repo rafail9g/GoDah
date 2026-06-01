@@ -15,6 +15,10 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = true;
   String? _role;
 
+  // Flag untuk mencegah race condition: jika login() sedang jalan,
+  // onAuthStateChange tidak ikut-ikutan load profile lagi
+  bool _isManualLogin = false;
+
   UserModel? get currentUser => _currentUser;
   PorterModel? get currentPorter => _currentPorter;
   AdminModel? get currentAdmin => _currentAdmin;
@@ -42,7 +46,11 @@ class AuthProvider extends ChangeNotifier {
 
     _supabase.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
+
       if (event == AuthChangeEvent.signedIn && data.session != null) {
+        // Kalau sedang manual login, skip — login() sudah handle sendiri
+        if (_isManualLogin) return;
+
         _isLoading = true;
         notifyListeners();
         await _loadProfile(data.session!.user.id);
@@ -57,7 +65,7 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  // ── _loadProfile: retry 3x, jeda 1 detik ─────────────────────────
+  // ── _loadProfile ──────────────────────────────────────────────────
   Future<void> _loadProfile(String uid) async {
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
@@ -107,6 +115,7 @@ class AuthProvider extends ChangeNotifier {
     String? alamat,
   }) async {
     try {
+      _isManualLogin = true;
       final res = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -114,6 +123,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (res.user == null) {
+        _isManualLogin = false;
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
@@ -136,15 +146,21 @@ class AuthProvider extends ChangeNotifier {
             .eq('id', res.user!.id);
       }
 
+      _isManualLogin = false;
+
       if (_currentUser == null) {
         return Failure(
           AppError(message: 'Gagal memuat profil. Coba login ulang.'),
         );
       }
+
+      notifyListeners();
       return Success(_currentUser!);
     } on AuthException catch (e) {
+      _isManualLogin = false;
       return Failure(AppError(message: _translateAuthError(e.message)));
     } catch (e) {
+      _isManualLogin = false;
       return Failure(AppError.fromException(e));
     }
   }
@@ -157,6 +173,7 @@ class AuthProvider extends ChangeNotifier {
     required String noHp,
   }) async {
     try {
+      _isManualLogin = true;
       final res = await _supabase.auth.signUp(
         email: email,
         password: password,
@@ -164,6 +181,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (res.user == null) {
+        _isManualLogin = false;
         return Failure(AppError(message: 'Registrasi gagal, coba lagi.'));
       }
 
@@ -179,15 +197,21 @@ class AuthProvider extends ChangeNotifier {
         await _loadProfile(res.user!.id);
       }
 
+      _isManualLogin = false;
+
       if (_currentPorter == null) {
         return Failure(
           AppError(message: 'Gagal memuat profil. Coba login ulang.'),
         );
       }
+
+      notifyListeners();
       return Success(_currentPorter!);
     } on AuthException catch (e) {
+      _isManualLogin = false;
       return Failure(AppError(message: _translateAuthError(e.message)));
     } catch (e) {
+      _isManualLogin = false;
       return Failure(AppError.fromException(e));
     }
   }
@@ -198,16 +222,22 @@ class AuthProvider extends ChangeNotifier {
     required String password,
   }) async {
     try {
+      // Set flag dulu sebelum signIn agar onAuthStateChange tidak ikut jalan
+      _isManualLogin = true;
+
       final res = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
       if (res.user == null) {
+        _isManualLogin = false;
         return Failure(AppError(message: 'Login gagal.'));
       }
 
       await _loadProfile(res.user!.id);
+
+      _isManualLogin = false;
 
       if (_role == null) {
         return Failure(
@@ -215,40 +245,36 @@ class AuthProvider extends ChangeNotifier {
         );
       }
 
+      // Notify SETELAH _isManualLogin = false dan state sudah lengkap
+      // GoRouter akan redirect otomatis via refreshListenable
+      notifyListeners();
+
       return Success(_role!);
     } on AuthException catch (e) {
+      _isManualLogin = false;
       return Failure(AppError(message: _translateAuthError(e.message)));
     } catch (e) {
+      _isManualLogin = false;
       return Failure(AppError.fromException(e));
     }
   }
 
   // ── Login Admin ───────────────────────────────────────────────────
-  // Admin login tidak pakai Supabase Auth, tapi query langsung ke tabel admins.
-  // PENTING: Pastikan RLS policy sudah dibuat di Supabase:
-  //   CREATE POLICY "Allow admin login"
-  //     ON admins FOR SELECT
-  //     TO anon, authenticated
-  //     USING (true);
   Future<AppResult<AdminModel>> loginAdmin({
     required String email,
     required String password,
   }) async {
     try {
-      // Query berdasarkan email dulu
       final res = await _supabase
           .from('admins')
           .select()
           .eq('email', email.toLowerCase().trim())
           .maybeSingle();
 
-      // Email tidak ditemukan — kembalikan failure tanpa pesan spesifik
-      // supaya attacker tidak bisa tebak apakah email valid
       if (res == null) {
         return Failure(AppError(message: 'Email atau password salah.'));
       }
 
-      // Cek password (plain text — idealnya pakai bcrypt di production)
       final storedPassword = res['password_hash'] as String? ?? '';
       if (storedPassword != password) {
         return Failure(AppError(message: 'Email atau password salah.'));
@@ -258,7 +284,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return Success(_currentAdmin!);
     } on PostgrestException catch (e) {
-      // RLS mungkin memblokir query — berikan pesan yang informatif
       if (e.code == '42501' || e.message.contains('permission')) {
         return Failure(
           AppError(

@@ -1,0 +1,479 @@
+-- ============================================================
+--  GO-DAH DATABASE — Supabase Migration Script
+--  Jalankan di: Supabase Dashboard > SQL Editor > New Query
+--  Urutan eksekusi sudah diatur (FK dependencies terpenuhi)
+-- ============================================================
+
+-- Enable UUID extension (sudah aktif di Supabase by default, tapi aman dijalankan ulang)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+
+-- ============================================================
+-- 1. ENUM TYPES
+-- ============================================================
+
+CREATE TYPE user_status AS ENUM ('aktif', 'nonaktif', 'diblokir');
+CREATE TYPE porter_verif_status AS ENUM ('menunggu', 'disetujui', 'ditolak');
+CREATE TYPE admin_role AS ENUM ('superadmin', 'admin');
+CREATE TYPE jenis_layanan AS ENUM ('instant', 'terjadwal', 'semua');
+CREATE TYPE order_status AS ENUM (
+  'menunggu',
+  'diterima',
+  'menuju_lokasi',
+  'dalam_perjalanan',
+  'sampai_tujuan',
+  'selesai',
+  'batal'
+);
+CREATE TYPE notif_tipe AS ENUM ('pesanan_baru', 'status_update', 'pembayaran', 'sistem');
+
+
+-- ============================================================
+-- 2. TABEL: users
+-- ============================================================
+
+CREATE TABLE users (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nama          VARCHAR(100)  NOT NULL,
+  email         VARCHAR(150)  NOT NULL UNIQUE,
+  password_hash VARCHAR(255)  NOT NULL,
+  no_hp         VARCHAR(15)   NOT NULL UNIQUE,
+  alamat        TEXT,
+  status        user_status   NOT NULL DEFAULT 'aktif',
+  created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  users              IS 'Data mahasiswa pengguna layanan Go-Dah';
+COMMENT ON COLUMN users.status       IS 'aktif | nonaktif | diblokir';
+
+
+-- ============================================================
+-- 3. TABEL: porters
+-- ============================================================
+
+CREATE TABLE porters (
+  id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nama               VARCHAR(100)         NOT NULL,
+  email              VARCHAR(150)         NOT NULL UNIQUE,
+  no_hp              VARCHAR(15)          NOT NULL UNIQUE,
+  foto_profil        VARCHAR(500),
+  status_verifikasi  porter_verif_status  NOT NULL DEFAULT 'menunggu',
+  is_aktif           BOOLEAN              NOT NULL DEFAULT FALSE,
+  latitude           DECIMAL(10, 8),
+  longitude          DECIMAL(11, 8),
+  total_selesai      INT                  NOT NULL DEFAULT 0,
+  created_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at         TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  porters                   IS 'Data porter/kurir beserta lokasi real-time';
+COMMENT ON COLUMN porters.is_aktif          IS 'TRUE = porter sedang online dan siap menerima order';
+COMMENT ON COLUMN porters.latitude          IS 'Koordinat GPS terkini, diupdate saat porter aktif';
+
+
+-- ============================================================
+-- 4. TABEL: admins
+-- ============================================================
+
+CREATE TABLE admins (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nama          VARCHAR(100) NOT NULL,
+  email         VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role          admin_role   NOT NULL DEFAULT 'admin',
+  created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE admins IS 'Data admin pengelola sistem Go-Dah';
+
+
+-- ============================================================
+-- 5. TABEL: kategori_barang (lookup/referensi)
+-- ============================================================
+
+CREATE TABLE kategori_barang (
+  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nama       VARCHAR(100) NOT NULL UNIQUE,
+  deskripsi  TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE kategori_barang IS 'Referensi jenis/kategori barang yang bisa diangkut';
+
+-- Seed data awal
+INSERT INTO kategori_barang (nama, deskripsi) VALUES
+  ('Koper / Tas Besar',   'Koper, ransel besar, atau tas traveling'),
+  ('Kardus / Dus',        'Barang dalam kemasan kardus'),
+  ('Elektronik',          'Laptop, monitor, printer, dan barang elektronik lain'),
+  ('Furnitur Kecil',      'Kursi lipat, meja portable, rak kecil'),
+  ('Barang Campuran',     'Berbagai jenis barang dalam satu pengiriman'),
+  ('Lainnya',             'Jenis barang di luar kategori yang tersedia');
+
+
+-- ============================================================
+-- 6. TABEL: tarif
+-- ============================================================
+
+CREATE TABLE tarif (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  admin_id        UUID           REFERENCES admins(id) ON DELETE SET NULL,
+  nama_tarif      VARCHAR(100)   NOT NULL,
+  jenis_layanan   jenis_layanan  NOT NULL DEFAULT 'semua',
+  jenis_barang    VARCHAR(100),                         -- nullable = berlaku untuk semua jenis
+  harga_dasar     DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  harga_per_km    DECIMAL(8,  2) NOT NULL DEFAULT 0,
+  harga_per_kg    DECIMAL(8,  2) NOT NULL DEFAULT 0,
+  berat_min       DECIMAL(6,  2) NOT NULL DEFAULT 0,    -- kg
+  berat_max       DECIMAL(6,  2),                       -- nullable = tidak ada batas atas
+  is_aktif        BOOLEAN        NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  tarif              IS 'Aturan harga layanan, dikelola admin';
+COMMENT ON COLUMN tarif.harga_dasar IS 'Biaya minimum sebelum ditambah komponen jarak/berat';
+COMMENT ON COLUMN tarif.jenis_barang IS 'NULL = berlaku untuk semua kategori barang';
+
+-- Formula: total = harga_dasar + (jarak_km * harga_per_km) + (berat_kg * harga_per_kg)
+
+-- Seed tarif awal
+INSERT INTO tarif (nama_tarif, jenis_layanan, harga_dasar, harga_per_km, harga_per_kg, berat_min, berat_max, is_aktif)
+VALUES
+  ('Tarif Instant Standar',    'instant',    5000, 2000, 500,  0,    20,   TRUE),
+  ('Tarif Terjadwal Standar',  'terjadwal',  3000, 1500, 400,  0,    20,   TRUE),
+  ('Tarif Barang Berat',       'semua',      8000, 2500, 800,  20,   NULL, TRUE);
+
+
+-- ============================================================
+-- 7. TABEL: orders
+-- ============================================================
+
+CREATE TABLE orders (
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id          UUID           NOT NULL REFERENCES users(id)   ON DELETE RESTRICT,
+  porter_id        UUID                    REFERENCES porters(id) ON DELETE SET NULL,
+  tarif_id         UUID                    REFERENCES tarif(id)   ON DELETE SET NULL,
+  lokasi_jemput    TEXT           NOT NULL,
+  lokasi_tujuan    TEXT           NOT NULL,
+  lat_jemput       DECIMAL(10, 8) NOT NULL,
+  lng_jemput       DECIMAL(11, 8) NOT NULL,
+  lat_tujuan       DECIMAL(10, 8) NOT NULL,
+  lng_tujuan       DECIMAL(11, 8) NOT NULL,
+  jenis_barang     VARCHAR(100),
+  estimasi_berat   DECIMAL(6, 2),            -- kg
+  jenis_layanan    jenis_layanan  NOT NULL DEFAULT 'instant',
+  status           order_status   NOT NULL DEFAULT 'menunggu',
+  total_biaya      DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  waktu_pesan      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  waktu_selesai    TIMESTAMP WITH TIME ZONE,
+  catatan          TEXT,
+  created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  orders           IS 'Tabel inti pesanan jasa angkut barang';
+COMMENT ON COLUMN orders.porter_id IS 'NULL saat status=menunggu, diisi setelah porter menerima order';
+COMMENT ON COLUMN orders.status    IS 'Siklus: menunggu > diterima > menuju_lokasi > dalam_perjalanan > sampai_tujuan > selesai | batal';
+
+
+-- ============================================================
+-- 8. TABEL: order_tracking
+-- ============================================================
+
+CREATE TABLE order_tracking (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id          UUID           NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  status_perjalanan order_status   NOT NULL,
+  latitude          DECIMAL(10, 8),
+  longitude         DECIMAL(11, 8),
+  catatan           TEXT,
+  waktu_update      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE order_tracking IS 'Log real-time perubahan status dan lokasi porter per pesanan (append-only)';
+
+
+-- ============================================================
+-- 9. TABEL: bukti_pengiriman
+-- ============================================================
+
+CREATE TABLE bukti_pengiriman (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id    UUID         NOT NULL UNIQUE REFERENCES orders(id)  ON DELETE CASCADE,
+  porter_id   UUID         NOT NULL        REFERENCES porters(id) ON DELETE RESTRICT,
+  foto_url    VARCHAR(500) NOT NULL,
+  keterangan  TEXT,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  bukti_pengiriman          IS 'Foto bukti barang sudah sampai tujuan, diunggah porter';
+COMMENT ON COLUMN bukti_pengiriman.order_id IS 'UNIQUE: satu order hanya boleh punya satu bukti pengiriman';
+
+
+-- ============================================================
+-- 10. TABEL: porter_verifikasi
+-- ============================================================
+
+CREATE TABLE porter_verifikasi (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  porter_id           UUID                  NOT NULL REFERENCES porters(id) ON DELETE CASCADE,
+  admin_id            UUID                           REFERENCES admins(id)  ON DELETE SET NULL,
+  status              porter_verif_status   NOT NULL DEFAULT 'menunggu',
+  catatan_admin       TEXT,
+  dokumen_url         VARCHAR(500),
+  tanggal_verifikasi  TIMESTAMP WITH TIME ZONE,
+  created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  porter_verifikasi          IS 'Rekam jejak proses verifikasi akun porter oleh admin';
+COMMENT ON COLUMN porter_verifikasi.admin_id IS 'NULL sampai admin memproses pengajuan';
+
+
+-- ============================================================
+-- 11. TABEL: ratings
+-- ============================================================
+
+CREATE TABLE ratings (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id    UUID     NOT NULL UNIQUE REFERENCES orders(id)  ON DELETE CASCADE,
+  user_id     UUID     NOT NULL        REFERENCES users(id)   ON DELETE RESTRICT,
+  porter_id   UUID     NOT NULL        REFERENCES porters(id) ON DELETE RESTRICT,
+  nilai       SMALLINT NOT NULL CHECK (nilai BETWEEN 1 AND 5),
+  ulasan      TEXT,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE  ratings          IS 'Penilaian bintang dan ulasan user untuk porter setelah order selesai';
+COMMENT ON COLUMN ratings.order_id IS 'UNIQUE: satu order hanya boleh punya satu rating';
+COMMENT ON COLUMN ratings.nilai    IS 'Skala 1-5 bintang';
+
+
+-- ============================================================
+-- 12. TABEL: notifikasi
+-- ============================================================
+
+CREATE TABLE notifikasi (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id     UUID         REFERENCES users(id)   ON DELETE CASCADE,
+  porter_id   UUID         REFERENCES porters(id) ON DELETE CASCADE,
+  judul       VARCHAR(200) NOT NULL,
+  pesan       TEXT         NOT NULL,
+  tipe        notif_tipe   NOT NULL DEFAULT 'sistem',
+  is_read     BOOLEAN      NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+
+  CONSTRAINT notif_target_check CHECK (
+    (user_id IS NOT NULL AND porter_id IS NULL) OR
+    (user_id IS NULL AND porter_id IS NOT NULL)
+  )
+);
+
+COMMENT ON TABLE  notifikasi IS 'Notifikasi sistem ke user atau porter (salah satu harus diisi, tidak keduanya)';
+
+
+-- ============================================================
+-- 13. INDEKS — untuk performa query umum
+-- ============================================================
+
+-- orders: filter by user, porter, dan status (paling sering diquery)
+CREATE INDEX idx_orders_user_id    ON orders(user_id);
+CREATE INDEX idx_orders_porter_id  ON orders(porter_id);
+CREATE INDEX idx_orders_status     ON orders(status);
+CREATE INDEX idx_orders_waktu      ON orders(waktu_pesan DESC);
+
+-- order_tracking: ambil log tracking per order
+CREATE INDEX idx_tracking_order_id ON order_tracking(order_id);
+CREATE INDEX idx_tracking_waktu    ON order_tracking(waktu_update DESC);
+
+-- notifikasi: notif yang belum dibaca
+CREATE INDEX idx_notif_user_unread   ON notifikasi(user_id, is_read)   WHERE is_read = FALSE;
+CREATE INDEX idx_notif_porter_unread ON notifikasi(porter_id, is_read) WHERE is_read = FALSE;
+
+-- porter: cari porter aktif dan terverifikasi
+CREATE INDEX idx_porters_aktif ON porters(is_aktif, status_verifikasi);
+
+-- ratings: hitung rata-rata rating porter
+CREATE INDEX idx_ratings_porter_id ON ratings(porter_id);
+
+
+-- ============================================================
+-- 14. TRIGGER: auto-update kolom updated_at
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION trigger_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_updated_at_users
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at_porters
+  BEFORE UPDATE ON porters
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at_orders
+  BEFORE UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at_tarif
+  BEFORE UPDATE ON tarif
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+
+-- ============================================================
+-- 15. ROW LEVEL SECURITY (RLS) — Supabase Auth Integration
+--     Aktifkan RLS agar data aman via Supabase client
+-- ============================================================
+
+ALTER TABLE users             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE porters           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_tracking    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bukti_pengiriman  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ratings           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifikasi        ENABLE ROW LEVEL SECURITY;
+
+-- Contoh policy: user hanya bisa lihat data miliknya sendiri
+-- (Sesuaikan dengan sistem auth yang kamu pakai)
+
+CREATE POLICY "User lihat order sendiri"
+  ON orders FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "User buat order sendiri"
+  ON orders FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "User lihat notif sendiri"
+  ON notifikasi FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Catatan: Buat policy serupa untuk porter menggunakan porter_id
+-- dan untuk admin berikan akses penuh via service_role key
+
+
+-- ============================================================
+-- SELESAI
+-- Tabel yang dibuat:
+--   1. users              7. tarif
+--   2. porters            8. orders
+--   3. admins             9. order_tracking
+--   4. kategori_barang   10. bukti_pengiriman
+--   5. porter_verifikasi 11. ratings
+--   6. notifikasi
+-- ============================================================
+
+-- ============================================================
+--  GO-DAH: Trigger Supabase Auth → Tabel Custom
+--  Jalankan di: Supabase Dashboard > SQL Editor > New Query
+--  Jalankan SETELAH migration utama sudah dijalankan
+-- ============================================================
+
+-- 1. Fungsi trigger: otomatis insert ke users/porters saat register
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role TEXT;
+  v_nama TEXT;
+  v_no_hp TEXT;
+BEGIN
+  -- Ambil metadata yang dikirim saat signUp()
+  v_role  := NEW.raw_user_meta_data->>'role';
+  v_nama  := NEW.raw_user_meta_data->>'nama';
+  v_no_hp := NEW.raw_user_meta_data->>'no_hp';
+
+  IF v_role = 'porter' THEN
+    INSERT INTO public.porters (id, nama, email, no_hp)
+    VALUES (NEW.id, v_nama, NEW.email, v_no_hp)
+    ON CONFLICT (id) DO NOTHING;
+  ELSE
+    -- Default: mahasiswa/user
+    INSERT INTO public.users (id, nama, email, no_hp, password_hash)
+    VALUES (NEW.id, v_nama, NEW.email, v_no_hp, 'supabase_managed')
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- 2. Pasang trigger ke auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_auth_user();
+
+
+-- ============================================================
+--  Storage bucket untuk dokumen porter
+--  Jalankan juga ini supaya upload dokumen bisa jalan
+-- ============================================================
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('dokumen-porter', 'dokumen-porter', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policy: porter bisa upload ke folder miliknya sendiri
+CREATE POLICY "Porter upload dokumen sendiri"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'dokumen-porter');
+
+-- Policy: semua bisa baca (untuk admin review)
+CREATE POLICY "Public read dokumen porter"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'dokumen-porter');
+
+
+-- ============================================================
+--  Tambah admin pertama
+--  GANTI nama, email, dan password sesuai kebutuhan!
+--  Untuk production: gunakan bcrypt hash, bukan plain text
+-- ============================================================
+
+INSERT INTO public.admins (nama, email, password_hash, role)
+VALUES
+  ('Super Admin', 'admin@godah.com', 'admin123', 'superadmin')
+ON CONFLICT (email) DO NOTHING;
+
+-- ============================================================
+--  RLS Policy tambahan untuk porters
+-- ============================================================
+
+-- Porter bisa lihat dan update data dirinya sendiri
+CREATE POLICY "Porter baca profil sendiri"
+  ON porters FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Porter update profil sendiri"
+  ON porters FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Porter bisa insert verifikasi dirinya sendiri
+CREATE POLICY "Porter insert verifikasi"
+  ON porter_verifikasi FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = porter_id);
+
+CREATE POLICY "Porter lihat verifikasi sendiri"
+  ON porter_verifikasi FOR SELECT
+  USING (auth.uid() = porter_id);
+
+-- ============================================================
+--  SELESAI
+--  Setelah menjalankan script ini:
+--  1. Coba register user lewat app → cek tabel public.users
+--  2. Coba register porter → cek tabel public.porters
+--  3. Login admin: email=admin@godah.com, pass=admin123
+-- ============================================================

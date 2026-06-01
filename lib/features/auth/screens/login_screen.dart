@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -9,6 +8,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/validators.dart';
 import '../../../state/providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,24 +45,25 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (adminResult.isSuccess) {
+      // GoRouter akan redirect otomatis via refreshListenable
+      // tapi admin tidak pakai Supabase Auth jadi manual go
       setState(() => _loading = false);
       context.go('/admin/home');
       return;
     }
 
-    // 2. Kalau bukan admin, coba login sebagai user/porter
+    // 2. Login sebagai user/porter
     final userResult = await auth.login(email: email, password: password);
 
     if (!mounted) return;
     setState(() => _loading = false);
 
     userResult.when(
-      success: (role) {
-        if (role == 'porter') {
-          context.go('/porter/home');
-        } else {
-          context.go('/user/home');
-        }
+      success: (_) {
+        // ✅ JANGAN pakai context.go() di sini
+        // GoRouter sudah listen ke auth via refreshListenable
+        // dan akan redirect otomatis karena notifyListeners() sudah dipanggil
+        // di dalam auth.login() sebelum return
       },
       failure: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,7 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 48),
 
-                // Logo & judul
                 Center(
                   child: Container(
                     width: 72,
@@ -128,7 +128,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // Form card
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -203,7 +202,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Daftar
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

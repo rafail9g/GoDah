@@ -19,35 +19,43 @@ abstract class AppRouter {
       final loc = state.matchedLocation;
 
       // Masih loading session — tetap di splash
-      if (auth.isLoading) return '/splash';
+      if (auth.isLoading) {
+        return loc == '/splash' ? null : '/splash';
+      }
 
-      final isAuthPage =
+      final isAuthRoute =
           loc == '/login' ||
           loc == '/register' ||
           loc == '/register/user' ||
           loc == '/register/porter';
 
-      // Admin sudah login
+      final isSplash = loc == '/splash';
+
+      // ── Admin sudah login ──────────────────────────────────────
       if (auth.isAdminLoggedIn) {
-        if (isAuthPage || loc == '/splash') return '/admin/home';
+        if (isAuthRoute || isSplash) return '/admin/home';
         return null;
       }
 
-      // User/porter sudah login
+      // ── User/porter sudah login ────────────────────────────────
       if (auth.isLoggedIn) {
-        if (isAuthPage || loc == '/splash') {
+        // Kalau masih di halaman auth atau splash, arahkan ke home
+        if (isAuthRoute || isSplash) {
           return auth.role == 'porter' ? '/porter/home' : '/user/home';
         }
+        // Sudah di halaman yang benar, biarkan
         return null;
       }
 
-      // Belum login — boleh ke halaman auth, redirect sisanya ke login
-      if (!isAuthPage && loc != '/splash') return '/login';
+      // ── Belum login ────────────────────────────────────────────
+      // Boleh akses halaman auth
+      if (isAuthRoute) return null;
 
       // Dari splash tanpa session → ke login
-      if (loc == '/splash') return '/login';
+      if (isSplash) return '/login';
 
-      return null;
+      // Halaman lain tanpa login → redirect ke login
+      return '/login';
     },
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
