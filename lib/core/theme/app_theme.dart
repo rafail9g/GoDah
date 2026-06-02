@@ -92,33 +92,33 @@ abstract final class AppTheme {
       // InputDecoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.white,
+        fillColor: AppColors.grey100,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppDimens.paddingInput,
-          vertical: AppDimens.paddingInput,
+          horizontal: 16.0,
+          vertical: 16.0,
         ),
-        hintStyle: AppTextStyles.inputHint,
-        labelStyle: AppTextStyles.inputLabel,
+        hintStyle: AppTextStyles.inputHint.copyWith(color: AppColors.grey500),
+        labelStyle: AppTextStyles.inputLabel.copyWith(color: AppColors.grey700),
         errorStyle: AppTextStyles.inputError,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: const BorderSide(color: AppColors.grey300),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: const BorderSide(color: AppColors.grey300),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: const BorderSide(color: AppColors.error, width: 2),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
       ),
 

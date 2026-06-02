@@ -11,53 +11,100 @@ class UserProfileTab extends StatelessWidget {
   const UserProfileTab({super.key});
 
   @override
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Profil Saya')),
+      appBar: AppBar(
+        title: const Text(
+          'Profil Saya',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        backgroundColor: const Color(0xFF1E3C72),
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimens.paddingScreen),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Avatar & nama
-            Center(
+            // Header Profile Block
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: AppColors.primary100,
-                    child: Text(
-                      user?.initials ?? 'U',
-                      style: AppTextStyles.displayMd.copyWith(color: AppColors.primary),
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 46,
+                      backgroundColor: AppColors.primary100,
+                      child: Text(
+                        user?.initials ?? 'U',
+                        style: AppTextStyles.displayMd.copyWith(
+                          color: const Color(0xFF1E3C72),
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(user?.nama ?? '-', style: AppTextStyles.h2),
+                  const SizedBox(height: 16),
+                  Text(
+                    user?.nama ?? '-',
+                    style: AppTextStyles.h2.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     user?.email ?? '-',
-                    style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.white.withOpacity(0.85),
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(AppDimens.radiusRound),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.school_rounded, size: 14, color: AppColors.success),
-                        const SizedBox(width: 5),
+                        const Icon(Icons.school_rounded, size: 14, color: AppColors.white),
+                        const SizedBox(width: 6),
                         Text(
                           'Mahasiswa',
-                          style: AppTextStyles.labelSm.copyWith(color: AppColors.success),
+                          style: AppTextStyles.labelSm.copyWith(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -68,73 +115,104 @@ class UserProfileTab extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Info card
-            _InfoCard(children: [
-              _InfoRow(
-                icon: Icons.phone_outlined,
-                label: 'No. HP',
-                value: user?.formattedPhone ?? '-',
-              ),
-              const Divider(height: 1),
-              _InfoRow(
-                icon: Icons.location_on_outlined,
-                label: 'Alamat',
-                value: user?.alamat ?? 'Belum diisi',
-              ),
-              const Divider(height: 1),
-              _InfoRow(
-                icon: Icons.shield_outlined,
-                label: 'Status Akun',
-                value: user?.isActive == true ? 'Aktif' : 'Nonaktif',
-                valueColor: user?.isActive == true ? AppColors.success : AppColors.error,
-              ),
-            ]),
-            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    child: Text(
+                      'INFORMASI AKUN',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.grey500,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  _InfoCard(children: [
+                    _InfoRow(
+                      icon: Icons.phone_android_rounded,
+                      label: 'No. HP',
+                      value: user?.formattedPhone ?? '-',
+                    ),
+                    const Divider(height: 1),
+                    _InfoRow(
+                      icon: Icons.location_on_rounded,
+                      label: 'Alamat Kos/Gedung',
+                      value: user?.alamat ?? 'Belum diisi',
+                    ),
+                    const Divider(height: 1),
+                    _InfoRow(
+                      icon: Icons.shield_rounded,
+                      label: 'Status Akun',
+                      value: user?.isActive == true ? 'Aktif' : 'Nonaktif',
+                      valueColor: user?.isActive == true ? AppColors.success : AppColors.error,
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
 
-            // Menu
-            _InfoCard(children: [
-              _MenuRow(
-                icon: Icons.edit_outlined,
-                label: 'Edit Profil',
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.lock_outline_rounded,
-                label: 'Ganti Password',
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.help_outline_rounded,
-                label: 'Bantuan & FAQ',
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.info_outline_rounded,
-                label: 'Tentang Go-Dah',
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.logout_rounded,
-                label: 'Keluar',
-                color: AppColors.error,
-                onTap: () async {
-                  await auth.logout();
-                  if (context.mounted) context.go('/login');
-                },
-              ),
-            ]),
-            const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    child: Text(
+                      'PENGATURAN',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.grey500,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  _InfoCard(children: [
+                    _MenuRow(
+                      icon: Icons.edit_rounded,
+                      label: 'Edit Profil',
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.lock_rounded,
+                      label: 'Ganti Password',
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.help_outline_rounded,
+                      label: 'Bantuan & FAQ',
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.info_outline_rounded,
+                      label: 'Tentang Go-Dah',
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.logout_rounded,
+                      label: 'Keluar dari Akun',
+                      color: AppColors.error,
+                      onTap: () async {
+                        await auth.logout();
+                        if (context.mounted) context.go('/login');
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
 
-            // App version
-            Text(
-              'Go-Dah v1.0.0 • Jasa Angkut Barang Mahasiswa',
-              style: AppTextStyles.caption,
-              textAlign: TextAlign.center,
+                  // App version
+                  Center(
+                    child: Text(
+                      'Go-Dah Mobile v1.0.0\nJasa Angkut Barang Mahasiswa',
+                      style: AppTextStyles.caption.copyWith(height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
+              ),
             ),
-            const SizedBox(height: 80),
           ],
         ),
       ),

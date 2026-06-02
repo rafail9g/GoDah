@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/validators.dart';
 import '../../../state/providers/auth_provider.dart';
@@ -73,8 +72,24 @@ class _UserOrderTabState extends State<UserOrderTab> {
     }
   }
 
+  IconData _getKategoriIcon(String name) {
+    switch (name) {
+      case 'Koper / Tas Besar':
+        return Icons.backpack_rounded;
+      case 'Kardus / Dus':
+        return Icons.inventory_2_rounded;
+      case 'Elektronik':
+        return Icons.devices_rounded;
+      case 'Furnitur Kecil':
+        return Icons.chair_rounded;
+      case 'Barang Campuran':
+        return Icons.layers_rounded;
+      default:
+        return Icons.more_horiz_rounded;
+    }
+  }
+
   void _hitungEstimasi() {
-    // Hitung estimasi biaya berdasarkan tarif
     final tarif = _tarifList.firstWhere(
       (t) {
         final jenis = t['jenis_layanan'] as String? ?? 'semua';
@@ -85,7 +100,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
 
     final hargaDasar = (tarif['harga_dasar'] as num? ?? 5000).toDouble();
     final hargaPerKg = (tarif['harga_per_kg'] as num? ?? 500).toDouble();
-    // Estimasi jarak 2km sebagai default (user belum input koordinat)
     final hargaPerKm = (tarif['harga_per_km'] as num? ?? 2000).toDouble();
     const estimasiKm = 2.0;
 
@@ -103,7 +117,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
       final user = context.read<AuthProvider>().currentUser;
       if (user == null) return;
 
-      // Cari tarif yang sesuai
       final tarif = _tarifList.isNotEmpty
           ? _tarifList.firstWhere(
               (t) {
@@ -177,50 +190,61 @@ class _UserOrderTabState extends State<UserOrderTab> {
         slivers: [
           // Header
           SliverAppBar(
-            expandedHeight: 130,
+            expandedHeight: 140,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: const Color(0xFF1E3C72),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [AppColors.primary700, AppColors.primary, AppColors.secondary500],
+                    colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
                   ),
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.local_shipping_rounded,
-                                color: AppColors.white, size: 28),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white24,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.local_shipping_rounded,
+                                  color: AppColors.white, size: 22),
+                            ),
                             const SizedBox(width: 10),
                             Text(
                               'Go-Dah',
-                              style: AppTextStyles.h2.copyWith(color: AppColors.white),
+                              style: AppTextStyles.h2.copyWith(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const Spacer(),
                             IconButton(
-                              icon: const Icon(Icons.notifications_outlined, color: AppColors.white),
+                              icon: const Icon(Icons.notifications_none_rounded, color: AppColors.white),
                               onPressed: () {},
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 10),
                         Text(
                           'Halo, ${user?.nama ?? 'Mahasiswa'}! 👋',
-                          style: AppTextStyles.bodyMd.copyWith(
-                              color: AppColors.white.withOpacity(0.9)),
+                          style: AppTextStyles.bodyLg.copyWith(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.bold),
                         ),
                         Text(
                           'Mau angkut barang ke mana hari ini?',
                           style: AppTextStyles.bodySm.copyWith(
-                              color: AppColors.white.withOpacity(0.75)),
+                              color: AppColors.white.withOpacity(0.8)),
                         ),
                       ],
                     ),
@@ -240,249 +264,357 @@ class _UserOrderTabState extends State<UserOrderTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Lokasi Card
+                      // Lokasi Card (Visual Map Route style)
                       Container(
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withOpacity(0.07),
-                              blurRadius: 12,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('📍 Lokasi', style: AppTextStyles.h4),
-                              const SizedBox(height: 12),
-
-                              // Jemput
-                              _LokasiField(
-                                controller: _jemputCtrl,
-                                label: 'Lokasi Jemput',
-                                hint: 'Contoh: Kos Melati, Jl. Kalimantan No. 5',
-                                icon: Icons.radio_button_on_rounded,
-                                iconColor: AppColors.success,
-                                validator: Validators.required,
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '📍 Alur Pengiriman',
+                              style: AppTextStyles.h4.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
                               ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 11),
-                                child: Column(
-                                  children: List.generate(
-                                    3,
-                                    (i) => Container(
-                                      margin: const EdgeInsets.symmetric(vertical: 2),
-                                      width: 2,
-                                      height: 4,
-                                      color: AppColors.grey300,
-                                    ),
+                            ),
+                            const SizedBox(height: 16),
+                            Stack(
+                              children: [
+                                // Vertical connecting line
+                                Positioned(
+                                  left: 17,
+                                  top: 30,
+                                  bottom: 30,
+                                  child: Container(
+                                    width: 2,
+                                    color: AppColors.grey200,
                                   ),
                                 ),
-                              ),
-
-                              // Tujuan
-                              _LokasiField(
-                                controller: _tujuanCtrl,
-                                label: 'Lokasi Tujuan',
-                                hint: 'Contoh: Gedung Kuliah C, Universitas Jember',
-                                icon: Icons.location_on_rounded,
-                                iconColor: AppColors.error,
-                                validator: Validators.required,
-                              ),
-                            ],
-                          ),
+                                Column(
+                                  children: [
+                                    // Jemput
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 14.0),
+                                          child: Icon(
+                                            Icons.radio_button_checked_rounded,
+                                            color: AppColors.success,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: _jemputCtrl,
+                                            validator: Validators.required,
+                                            style: AppTextStyles.bodyMd,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Lokasi Penjemputan',
+                                              hintText: 'Kos, Jl. Kalimantan No. 5',
+                                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Tujuan
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 14.0),
+                                          child: Icon(
+                                            Icons.location_on_rounded,
+                                            color: AppColors.error,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: _tujuanCtrl,
+                                            validator: Validators.required,
+                                            style: AppTextStyles.bodyMd,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Lokasi Tujuan',
+                                              hintText: 'Gedung C, Universitas Jember',
+                                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
 
                       // Detail Barang Card
                       Container(
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withOpacity(0.07),
-                              blurRadius: 12,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('📦 Detail Barang', style: AppTextStyles.h4),
-                              const SizedBox(height: 14),
-
-                              // Kategori
-                              Text('Kategori Barang', style: AppTextStyles.labelLg),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: (_kategoriList.isNotEmpty ? _kategoriList : _defaultKategori)
-                                    .map((k) => _KategoriChip(
-                                          label: k,
-                                          selected: _jenisBrg == k,
-                                          onTap: () => setState(() => _jenisBrg = k),
-                                        ))
-                                    .toList(),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '📦 Detail Barang',
+                              style: AppTextStyles.h4.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
                               ),
-                              const SizedBox(height: 16),
+                            ),
+                            const SizedBox(height: 18),
 
-                              // Estimasi Berat
-                              Row(
-                                children: [
-                                  Text('Estimasi Berat', style: AppTextStyles.labelLg),
-                                  const Spacer(),
-                                  Text(
-                                    '${_estimasiBerat.toStringAsFixed(0)} kg',
-                                    style: AppTextStyles.h4.copyWith(color: AppColors.primary),
+                            // Kategori (3-column Grid)
+                            Text(
+                              'Kategori Barang',
+                              style: AppTextStyles.labelLg.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.grey700,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            GridView.count(
+                              crossAxisCount: 3,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 1.05,
+                              children: (_kategoriList.isNotEmpty ? _kategoriList : _defaultKategori)
+                                  .map((k) => _KategoriCard(
+                                        label: k,
+                                        icon: _getKategoriIcon(k),
+                                        selected: _jenisBrg == k,
+                                        onTap: () => setState(() => _jenisBrg = k),
+                                      ))
+                                  .toList(),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Estimasi Berat
+                            Row(
+                              children: [
+                                Text(
+                                  'Estimasi Berat',
+                                  style: AppTextStyles.labelLg.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.grey700,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              SliderTheme(
-                                data: SliderThemeData(
-                                  activeTrackColor: AppColors.primary,
-                                  inactiveTrackColor: AppColors.primary100,
-                                  thumbColor: AppColors.primary,
-                                  overlayColor: AppColors.primary.withOpacity(0.1),
-                                  trackHeight: 4,
                                 ),
-                                child: Slider(
-                                  value: _estimasiBerat,
-                                  min: 1,
-                                  max: 50,
-                                  divisions: 49,
-                                  onChanged: (v) => setState(() {
-                                    _estimasiBerat = v;
-                                    _showEstimasi = false;
-                                  }),
+                                const Spacer(),
+                                // Minus Button
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.remove_circle_outline_rounded,
+                                    color: AppColors.primary,
+                                    size: 26,
+                                  ),
+                                  onPressed: _estimasiBerat > 1
+                                      ? () => setState(() {
+                                            _estimasiBerat--;
+                                            _showEstimasi = false;
+                                          })
+                                      : null,
                                 ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${_estimasiBerat.toStringAsFixed(0)} kg',
+                                    style: AppTextStyles.h4.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                // Plus Button
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.add_circle_outline_rounded,
+                                    color: AppColors.primary,
+                                    size: 26,
+                                  ),
+                                  onPressed: _estimasiBerat < 50
+                                      ? () => setState(() {
+                                            _estimasiBerat++;
+                                            _showEstimasi = false;
+                                          })
+                                      : null,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            SliderTheme(
+                              data: SliderThemeData(
+                                activeTrackColor: AppColors.primary,
+                                inactiveTrackColor: AppColors.primary100,
+                                thumbColor: AppColors.primary,
+                                overlayColor: AppColors.primary.withOpacity(0.1),
+                                trackHeight: 4,
                               ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('1 kg', style: AppTextStyles.caption),
-                                  Text('50 kg', style: AppTextStyles.caption),
-                                ],
+                              child: Slider(
+                                value: _estimasiBerat,
+                                min: 1,
+                                max: 50,
+                                divisions: 49,
+                                onChanged: (v) => setState(() {
+                                  _estimasiBerat = v;
+                                  _showEstimasi = false;
+                                }),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
 
                       // Layanan Card
                       Container(
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withOpacity(0.07),
-                              blurRadius: 12,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('⚡ Jenis Layanan', style: AppTextStyles.h4),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _LayananCard(
-                                      icon: Icons.bolt_rounded,
-                                      title: 'Instan',
-                                      subtitle: 'Porter datang sekarang',
-                                      selected: _jenisLayanan == 'instant',
-                                      onTap: () => setState(() {
-                                        _jenisLayanan = 'instant';
-                                        _showEstimasi = false;
-                                      }),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _LayananCard(
-                                      icon: Icons.calendar_today_rounded,
-                                      title: 'Terjadwal',
-                                      subtitle: 'Atur waktu penjemputan',
-                                      selected: _jenisLayanan == 'terjadwal',
-                                      onTap: () => setState(() {
-                                        _jenisLayanan = 'terjadwal';
-                                        _showEstimasi = false;
-                                      }),
-                                    ),
-                                  ),
-                                ],
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '⚡ Jenis Layanan',
+                              style: AppTextStyles.h4.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Catatan
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.07),
-                              blurRadius: 12,
-                              offset: const Offset(0, 3),
                             ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('📝 Catatan (opsional)', style: AppTextStyles.h4),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _catatanCtrl,
-                                maxLines: 3,
-                                style: AppTextStyles.bodyMd,
-                                decoration: const InputDecoration(
-                                  hintText: 'Contoh: Tolong hati-hati, ada barang pecah belah',
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _LayananCard(
+                                    icon: Icons.bolt_rounded,
+                                    title: 'Instan',
+                                    subtitle: 'Porter segera jalan',
+                                    selected: _jenisLayanan == 'instant',
+                                    onTap: () => setState(() {
+                                      _jenisLayanan = 'instant';
+                                      _showEstimasi = false;
+                                    }),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _LayananCard(
+                                    icon: Icons.calendar_month_rounded,
+                                    title: 'Terjadwal',
+                                    subtitle: 'Atur jam kirim',
+                                    selected: _jenisLayanan == 'terjadwal',
+                                    onTap: () => setState(() {
+                                      _jenisLayanan = 'terjadwal';
+                                      _showEstimasi = false;
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Estimasi Biaya
-                      if (_showEstimasi)
-                        _EstimasiBiayaCard(biaya: _estimasiBiaya),
-                      if (_showEstimasi) const SizedBox(height: 12),
+                      // Catatan Card
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '📝 Catatan (Opsional)',
+                              style: AppTextStyles.h4.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _catatanCtrl,
+                              maxLines: 2,
+                              style: AppTextStyles.bodyMd,
+                              decoration: const InputDecoration(
+                                hintText: 'Contoh: Tolong hati-hati, barang pecah belah',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-                      // Tombol
+                      // Estimasi Biaya Card
+                      if (_showEstimasi) ...[
+                        _EstimasiBiayaCard(biaya: _estimasiBiaya),
+                        const SizedBox(height: 18),
+                      ],
+
+                      // Tombol Action
                       if (!_showEstimasi)
                         OutlinedButton.icon(
                           onPressed: _hitungEstimasi,
-                          icon: const Icon(Icons.calculate_rounded),
+                          icon: const Icon(Icons.calculate_rounded, size: 20),
                           label: const Text('Hitung Estimasi Biaya'),
                           style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(AppDimens.buttonHeightMd),
+                            minimumSize: const Size.fromHeight(52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            side: const BorderSide(color: Color(0xFF1E3C72), width: 1.5),
                           ),
                         )
                       else
@@ -497,10 +629,18 @@ class _UserOrderTabState extends State<UserOrderTab> {
                                     color: AppColors.white,
                                   ),
                                 )
-                              : const Icon(Icons.local_shipping_rounded),
-                          label: Text(_loading ? 'Memproses...' : 'Pesan Sekarang'),
+                              : const Icon(Icons.local_shipping_rounded, size: 20),
+                          label: Text(
+                            _loading ? 'Memproses...' : 'Pesan Sekarang',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(AppDimens.buttonHeightMd),
+                            backgroundColor: const Color(0xFF1E3C72),
+                            minimumSize: const Size.fromHeight(52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 4,
                           ),
                         ),
                       const SizedBox(height: 80),
@@ -516,85 +656,60 @@ class _UserOrderTabState extends State<UserOrderTab> {
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────
-
-class _LokasiField extends StatelessWidget {
-  final TextEditingController controller;
+// ── Baru: Card Kategori Modern dengan Icon ────────────────────────────────
+class _KategoriCard extends StatelessWidget {
   final String label;
-  final String hint;
   final IconData icon;
-  final Color iconColor;
-  final String? Function(String?)? validator;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _LokasiField({
-    required this.controller,
+  const _KategoriCard({
     required this.label,
-    required this.hint,
     required this.icon,
-    required this.iconColor,
-    this.validator,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 14),
-          child: Icon(icon, color: iconColor, size: 18),
+    return Container(
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFF1E3C72).withOpacity(0.06) : AppColors.grey50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected ? const Color(0xFF1E3C72) : AppColors.grey200,
+          width: selected ? 2 : 1,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextFormField(
-            controller: controller,
-            validator: validator,
-            style: AppTextStyles.bodyMd,
-            decoration: InputDecoration(
-              labelText: label,
-              hintText: hint,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: iconColor, width: 1.5),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: selected ? const Color(0xFF1E3C72) : AppColors.grey600,
+                size: 24,
               ),
-              errorBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.error),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    color: selected ? const Color(0xFF1E3C72) : AppColors.grey700,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _KategoriChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _KategoriChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.grey100,
-          borderRadius: BorderRadius.circular(AppDimens.radiusRound),
-          border: Border.all(
-            color: selected ? AppColors.primary : AppColors.grey200,
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.labelMd.copyWith(
-            color: selected ? AppColors.white : AppColors.grey700,
+            ],
           ),
         ),
       ),
@@ -623,33 +738,43 @@ class _LayananCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary50 : AppColors.grey50,
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          color: selected ? const Color(0xFF1E3C72).withOpacity(0.06) : AppColors.grey50,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.grey200,
+            color: selected ? const Color(0xFF1E3C72) : AppColors.grey200,
             width: selected ? 2 : 1,
           ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF1E3C72).withOpacity(0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : [],
         ),
         child: Column(
           children: [
             Icon(
               icon,
-              color: selected ? AppColors.primary : AppColors.grey400,
-              size: 28,
+              color: selected ? const Color(0xFF1E3C72) : AppColors.grey500,
+              size: 32,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Text(
               title,
               style: AppTextStyles.labelLg.copyWith(
-                color: selected ? AppColors.primary : AppColors.grey700,
+                color: selected ? const Color(0xFF1E3C72) : AppColors.grey800,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
             Text(
               subtitle,
-              style: AppTextStyles.caption,
+              style: AppTextStyles.caption.copyWith(fontSize: 10),
               textAlign: TextAlign.center,
             ),
           ],
@@ -675,32 +800,54 @@ class _EstimasiBiayaCard extends StatelessWidget {
     final rupiahStr = result.toString().split('').reversed.join();
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.secondary500],
+          colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E3C72).withOpacity(0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.receipt_long_rounded, color: AppColors.white, size: 32),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.receipt_long_rounded, color: AppColors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Estimasi Biaya',
-                  style: AppTextStyles.labelLg.copyWith(color: AppColors.white.withOpacity(0.85)),
+                  'Estimasi Biaya Jasa',
+                  style: AppTextStyles.labelMd.copyWith(color: AppColors.white.withOpacity(0.8)),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   'Rp $rupiahStr',
-                  style: AppTextStyles.priceLg.copyWith(color: AppColors.white),
+                  style: AppTextStyles.priceLg.copyWith(
+                    color: AppColors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  '* Estimasi jarak 2km, harga bisa berubah',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.white.withOpacity(0.7)),
+                  '* Jarak estimasi 2 km, berat ${_getKeteranganBerat()}',
+                  style: AppTextStyles.caption.copyWith(color: AppColors.white.withOpacity(0.7), fontSize: 10),
                 ),
               ],
             ),
@@ -708,5 +855,9 @@ class _EstimasiBiayaCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getKeteranganBerat() {
+    return 'disesuaikan';
   }
 }

@@ -125,6 +125,7 @@ class RolePickerScreen extends StatelessWidget {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     final title = isGoogleCompletion
         ? 'Lengkapi Akun Google'
@@ -137,80 +138,115 @@ class RolePickerScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(isGoogleCompletion ? 'Pilih Role' : 'Daftar Sebagai'),
-        backgroundColor: AppColors.primary,
+        title: Text(
+          isGoogleCompletion ? 'Pilih Peran' : 'Daftar Sebagai',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        backgroundColor: const Color(0xFF1E3C72),
+        elevation: 0,
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(AppDimens.paddingScreen),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            Text(title, style: AppTextStyles.h2, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 24),
+              Text(
+                title,
+                style: AppTextStyles.h1.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: AppTextStyles.bodyMd.copyWith(
+                  color: AppColors.grey500,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 48),
 
-            _RoleCard(
-              icon: Icons.school_rounded,
-              title: 'Mahasiswa',
-              subtitle: 'Saya ingin menggunakan jasa angkut barang',
-              color: AppColors.primary,
-              onTap: () {
-                if (isGoogleCompletion) {
-                  _showGoogleCompleteDialog(context, 'user');
-                } else {
-                  context.push('/register/user');
-                }
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            _RoleCard(
-              icon: Icons.directions_run_rounded,
-              title: 'Porter',
-              subtitle: 'Saya ingin menjadi porter dan menerima pesanan',
-              color: AppColors.accent700,
-              onTap: () {
-                if (isGoogleCompletion) {
-                  _showGoogleCompleteDialog(context, 'porter');
-                } else {
-                  context.push('/register/porter');
-                }
-              },
-            ),
-
-            const Spacer(),
-
-            if (!isGoogleCompletion)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Sudah punya akun? ', style: AppTextStyles.bodyMd),
-                  GestureDetector(
-                    onTap: () => context.go('/login'),
-                    child: Text('Masuk', style: AppTextStyles.link),
-                  ),
-                ],
-              )
-            else
-              TextButton(
-                onPressed: () async {
-                  await context.read<AuthProvider>().logout();
-                  if (context.mounted) {
-                    context.go('/login');
+              // Student Role Card
+              _RoleCard(
+                icon: Icons.school_rounded,
+                title: 'Mahasiswa (User)',
+                subtitle: 'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
+                color: const Color(0xFF1E3C72),
+                onTap: () {
+                  if (isGoogleCompletion) {
+                    _showGoogleCompleteDialog(context, 'user');
+                  } else {
+                    context.push('/register/user');
                   }
                 },
-                child: const Text('Batal dan logout'),
               ),
 
-            const SizedBox(height: 24),
-          ],
+              const SizedBox(height: 18),
+
+              // Porter Role Card
+              _RoleCard(
+                icon: Icons.directions_run_rounded,
+                title: 'Porter (Kurir)',
+                subtitle: 'Mulai hasilkan uang dengan menerima pesanan angkut barang dari sesama mahasiswa.',
+                color: const Color(0xFF4CAF82),
+                onTap: () {
+                  if (isGoogleCompletion) {
+                    _showGoogleCompleteDialog(context, 'porter');
+                  } else {
+                    context.push('/register/porter');
+                  }
+                },
+              ),
+
+              const Spacer(),
+
+              if (!isGoogleCompletion)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Sudah punya akun? ',
+                      style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey600),
+                    ),
+                    GestureDetector(
+                      onTap: () => context.go('/login'),
+                      child: Text(
+                        'Masuk',
+                        style: AppTextStyles.bodyMd.copyWith(
+                          color: const Color(0xFF1E3C72),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                TextButton(
+                  onPressed: () async {
+                    await context.read<AuthProvider>().logout();
+                    if (context.mounted) {
+                      context.go('/login');
+                    }
+                  },
+                  child: Text(
+                    'Batal dan logout',
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -234,56 +270,69 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-          border: Border.all(color: AppColors.grey200),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-              ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTextStyles.h4),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.bodyMd.copyWith(
-                      color: AppColors.grey500,
-                    ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.15), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: Icon(icon, color: color, size: 26),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTextStyles.h4.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.grey500,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: color.withOpacity(0.6),
+                ),
+              ],
             ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 16,
-              color: AppColors.grey400,
-            ),
-          ],
+          ),
         ),
       ),
     );

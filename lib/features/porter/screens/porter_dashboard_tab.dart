@@ -203,21 +203,21 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         slivers: [
           // AppBar
           SliverAppBar(
-            expandedHeight: 160,
+            expandedHeight: 170,
             pinned: true,
-            backgroundColor: AppColors.primary,
+            backgroundColor: const Color(0xFF1E3C72),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [AppColors.primary700, AppColors.primary, AppColors.secondary500],
+                    colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
                   ),
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -230,7 +230,10 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                 porter?.nama.isNotEmpty == true
                                     ? porter!.nama[0].toUpperCase()
                                     : 'P',
-                                style: AppTextStyles.h3.copyWith(color: AppColors.white),
+                                style: AppTextStyles.h3.copyWith(
+                                  color: AppColors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -240,14 +243,17 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                 children: [
                                   Text(
                                     'Halo, ${porter?.nama ?? 'Porter'}! 👋',
-                                    style: AppTextStyles.h4.copyWith(color: AppColors.white),
+                                    style: AppTextStyles.h4.copyWith(
+                                      color: AppColors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   Text(
                                     porter?.statusVerifikasi == 'disetujui'
-                                        ? '✅ Terverifikasi'
+                                        ? '✅ Akun Terverifikasi'
                                         : porter?.statusVerifikasi == 'menunggu'
                                             ? '⏳ Menunggu Verifikasi'
-                                            : '❌ Tidak Terverifikasi',
+                                            : '❌ Belum Terverifikasi',
                                     style: AppTextStyles.bodySm.copyWith(
                                       color: AppColors.white.withOpacity(0.85),
                                     ),
@@ -256,12 +262,12 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.notifications_outlined, color: AppColors.white),
+                              icon: const Icon(Icons.notifications_none_rounded, color: AppColors.white),
                               onPressed: () {},
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                         // Online Toggle
                         _OnlineToggleCard(
                           isOnline: _isOnline,
@@ -361,7 +367,7 @@ class _OnlineToggleCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.white.withOpacity(0.25)),
       ),
       child: Row(
@@ -370,18 +376,22 @@ class _OnlineToggleCard extends StatelessWidget {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: isOnline ? AppColors.success : AppColors.grey400,
+              color: isOnline ? const Color(0xFF38EF7D) : AppColors.grey400,
               shape: BoxShape.circle,
               boxShadow: isOnline
-                  ? [BoxShadow(color: AppColors.success.withOpacity(0.5), blurRadius: 6)]
+                  ? [BoxShadow(color: const Color(0xFF38EF7D).withOpacity(0.6), blurRadius: 8, spreadRadius: 2)]
                   : [],
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              isOnline ? 'Kamu sedang Online' : 'Kamu sedang Offline',
-              style: AppTextStyles.labelLg.copyWith(color: AppColors.white),
+              isOnline ? 'Status: ONLINE (Siap Terima Kerja)' : 'Status: OFFLINE (Sedang Istirahat)',
+              style: AppTextStyles.labelLg.copyWith(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           if (loading)
@@ -401,7 +411,7 @@ class _OnlineToggleCard extends StatelessWidget {
                 width: 52,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: isOnline ? AppColors.success : AppColors.grey500,
+                  color: isOnline ? const Color(0xFF38EF7D) : AppColors.grey500,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: AnimatedAlign(
@@ -439,21 +449,21 @@ class _StatsRow extends StatelessWidget {
           icon: Icons.check_circle_rounded,
           label: 'Order Selesai',
           value: '$totalSelesai',
-          color: AppColors.success,
+          gradientColors: const [Color(0xFF11998E), Color(0xFF38EF7D)],
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         _StatCard(
           icon: Icons.star_rounded,
-          label: 'Rating',
-          value: '–',
-          color: AppColors.warning,
+          label: 'Rating Anda',
+          value: '5.0',
+          gradientColors: const [Color(0xFFF2C94C), Color(0xFFF2994A)],
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         _StatCard(
           icon: Icons.local_shipping_rounded,
           label: 'Hari Ini',
           value: '0',
-          color: AppColors.primary,
+          gradientColors: const [Color(0xFF1E3C72), Color(0xFF2A5298)],
         ),
       ],
     );
@@ -464,38 +474,56 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final Color color;
+  final List<Color> gradientColors;
 
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
-    required this.color,
+    required this.gradientColors,
   });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: gradientColors[0].withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 22),
+            Icon(icon, color: Colors.white, size: 20),
             const SizedBox(height: 6),
-            Text(value, style: AppTextStyles.h3.copyWith(color: color)),
+            Text(
+              value,
+              style: AppTextStyles.h3.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(label, style: AppTextStyles.caption, textAlign: TextAlign.center),
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -516,31 +544,51 @@ class _VerifBanner extends StatelessWidget {
     final isPending = status == 'menunggu';
     final color = isPending ? AppColors.warning : AppColors.error;
     final icon = isPending ? Icons.hourglass_top_rounded : Icons.cancel_rounded;
-    final title = isPending ? 'Menunggu Verifikasi' : 'Verifikasi Ditolak';
+    final title = isPending ? 'Menunggu Verifikasi' : 'Verifikasi Akun Ditolak';
     final sub = isPending
-        ? 'Dokumenmu sedang ditinjau admin. Tunggu 1×24 jam.'
-        : 'Dokumen ditolak. Tap untuk upload ulang.';
+        ? 'Dokumenmu sedang ditinjau admin. Harap tunggu 1×24 jam.'
+        : 'Mohon maaf dokumen ditolak. Tap di sini untuk upload ulang.';
 
     return GestureDetector(
       onTap: status != 'menunggu' ? onTap : null,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          border: Border.all(color: color.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTextStyles.h4.copyWith(color: color)),
+                  Text(
+                    title,
+                    style: AppTextStyles.h4.copyWith(color: color, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 2),
-                  Text(sub, style: AppTextStyles.bodySm.copyWith(color: AppColors.grey600)),
+                  Text(
+                    sub,
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.grey600, height: 1.3),
+                  ),
                 ],
               ),
             ),
@@ -569,9 +617,20 @@ class _SectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTextStyles.h4),
-              if (subtitle != null)
-                Text(subtitle!, style: AppTextStyles.bodySm.copyWith(color: AppColors.grey500)),
+              Text(
+                title,
+                style: AppTextStyles.h3.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: AppTextStyles.bodySm.copyWith(color: AppColors.grey500),
+                ),
+              ],
             ],
           ),
         ),
@@ -598,17 +657,17 @@ class _AvailableOrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -616,53 +675,67 @@ class _AvailableOrderCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: layanan == 'instant'
-                        ? AppColors.warning.withOpacity(0.15)
-                        : AppColors.info.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusRound),
+                        ? const Color(0xFFF2994A).withOpacity(0.12)
+                        : const Color(0xFF2D9CDB).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     layanan == 'instant' ? '⚡ Instan' : '📅 Terjadwal',
                     style: AppTextStyles.labelSm.copyWith(
-                      color: layanan == 'instant' ? AppColors.warning : AppColors.info,
+                      color: layanan == 'instant' ? const Color(0xFFF2994A) : const Color(0xFF2D9CDB),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
                     ),
                   ),
                 ),
                 const Spacer(),
                 Text(
                   'Rp ${_formatRupiah(biaya)}',
-                  style: AppTextStyles.priceMd,
+                  style: AppTextStyles.priceMd.copyWith(
+                    color: const Color(0xFF1E3C72),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
 
             // Lokasi
-            _LocationRow(
-              icon: Icons.radio_button_on_rounded,
-              color: AppColors.success,
-              label: 'Jemput',
-              address: order['lokasi_jemput'] as String? ?? '-',
+            Stack(
+              children: [
+                Positioned(
+                  left: 7,
+                  top: 20,
+                  bottom: 20,
+                  child: Container(
+                    width: 2,
+                    color: AppColors.grey200,
+                  ),
+                ),
+                Column(
+                  children: [
+                    _LocationRow(
+                      icon: Icons.radio_button_checked_rounded,
+                      color: AppColors.success,
+                      label: 'Jemput',
+                      address: order['lokasi_jemput'] as String? ?? '-',
+                    ),
+                    const SizedBox(height: 12),
+                    _LocationRow(
+                      icon: Icons.location_on_rounded,
+                      color: AppColors.error,
+                      label: 'Tujuan',
+                      address: order['lokasi_tujuan'] as String? ?? '-',
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 7),
-              child: Container(
-                width: 2,
-                height: 16,
-                color: AppColors.grey300,
-              ),
-            ),
-            const SizedBox(height: 4),
-            _LocationRow(
-              icon: Icons.location_on_rounded,
-              color: AppColors.error,
-              label: 'Tujuan',
-              address: order['lokasi_tujuan'] as String? ?? '-',
-            ),
-            const Divider(height: 20),
+            const Divider(height: 24),
 
             // Barang & pemesan
             Row(
@@ -671,14 +744,14 @@ class _AvailableOrderCard extends StatelessWidget {
                   icon: Icons.inventory_2_outlined,
                   text: order['jenis_barang'] as String? ?? 'Tidak disebutkan',
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 _InfoChip(
                   icon: Icons.person_outline_rounded,
                   text: user['nama'] as String? ?? 'User',
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             // Tombol
             SizedBox(
@@ -686,10 +759,17 @@ class _AvailableOrderCard extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onAccept,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  minimumSize: const Size.fromHeight(44),
+                  backgroundColor: const Color(0xFF1E3C72),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 2,
                 ),
-                child: const Text('Terima Order'),
+                child: const Text(
+                  'Terima Order',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -709,8 +789,6 @@ class _AvailableOrderCard extends StatelessWidget {
     return result.toString();
   }
 }
-
-// ── Active Order Card ─────────────────────────────────────────────────────
 
 class _ActiveOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
@@ -752,18 +830,18 @@ class _ActiveOrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -773,35 +851,55 @@ class _ActiveOrderCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusRound),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     _statusLabelDisplay(status),
-                    style: AppTextStyles.labelSm.copyWith(color: color),
+                    style: AppTextStyles.labelSm.copyWith(color: color, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const Spacer(),
                 Text(
                   user['nama'] as String? ?? 'User',
-                  style: AppTextStyles.labelMd,
+                  style: AppTextStyles.labelMd.copyWith(fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            _LocationRow(
-              icon: Icons.radio_button_on_rounded,
-              color: AppColors.success,
-              label: 'Jemput',
-              address: order['lokasi_jemput'] as String? ?? '-',
+            const SizedBox(height: 14),
+
+            // Lokasi
+            Stack(
+              children: [
+                Positioned(
+                  left: 7,
+                  top: 20,
+                  bottom: 20,
+                  child: Container(
+                    width: 2,
+                    color: AppColors.grey200,
+                  ),
+                ),
+                Column(
+                  children: [
+                    _LocationRow(
+                      icon: Icons.radio_button_checked_rounded,
+                      color: AppColors.success,
+                      label: 'Jemput',
+                      address: order['lokasi_jemput'] as String? ?? '-',
+                    ),
+                    const SizedBox(height: 12),
+                    _LocationRow(
+                      icon: Icons.location_on_rounded,
+                      color: AppColors.error,
+                      label: 'Tujuan',
+                      address: order['lokasi_tujuan'] as String? ?? '-',
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _LocationRow(
-              icon: Icons.location_on_rounded,
-              color: AppColors.error,
-              label: 'Tujuan',
-              address: order['lokasi_tujuan'] as String? ?? '-',
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+
             if (_nextLabel(status).isNotEmpty)
               SizedBox(
                 width: double.infinity,
@@ -809,9 +907,16 @@ class _ActiveOrderCard extends StatelessWidget {
                   onPressed: onUpdateStatus,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: color,
-                    minimumSize: const Size.fromHeight(44),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 3,
                   ),
-                  child: Text(_nextLabel(status)),
+                  child: Text(
+                    _nextLabel(status),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
               ),
           ],

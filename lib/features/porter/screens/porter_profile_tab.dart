@@ -11,38 +11,85 @@ class PorterProfileTab extends StatelessWidget {
   const PorterProfileTab({super.key});
 
   @override
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final porter = auth.currentPorter;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Profil Saya')),
+      appBar: AppBar(
+        title: const Text(
+          'Profil Saya',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        backgroundColor: const Color(0xFF1E3C72),
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimens.paddingScreen),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Avatar & nama
-            Center(
+            // Header Profile Block
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: AppColors.primary100,
-                    child: Text(
-                      porter?.nama.isNotEmpty == true
-                          ? porter!.nama[0].toUpperCase()
-                          : 'P',
-                      style: AppTextStyles.displayMd.copyWith(color: AppColors.primary),
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 46,
+                      backgroundColor: AppColors.primary100,
+                      child: Text(
+                        porter?.nama.isNotEmpty == true
+                            ? porter!.nama[0].toUpperCase()
+                            : 'P',
+                        style: AppTextStyles.displayMd.copyWith(
+                          color: const Color(0xFF1E3C72),
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    porter?.nama ?? '-',
+                    style: AppTextStyles.h2.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    porter?.email ?? '-',
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.white.withOpacity(0.85),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(porter?.nama ?? '-', style: AppTextStyles.h2),
-                  const SizedBox(height: 4),
-                  Text(porter?.email ?? '-',
-                      style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500)),
-                  const SizedBox(height: 8),
                   _VerifBadge(status: porter?.statusVerifikasi ?? 'menunggu'),
                 ],
               ),
@@ -50,47 +97,91 @@ class PorterProfileTab extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Info
-            _InfoCard(children: [
-              _InfoRow(icon: Icons.phone_outlined, label: 'No. HP', value: porter?.noHp ?? '-'),
-              const Divider(height: 1),
-              _InfoRow(
-                icon: Icons.check_circle_outline_rounded,
-                label: 'Total Selesai',
-                value: '${porter?.totalSelesai ?? 0} order',
-              ),
-              const Divider(height: 1),
-              _InfoRow(
-                icon: Icons.badge_outlined,
-                label: 'Status Verifikasi',
-                value: _verifLabel(porter?.statusVerifikasi ?? ''),
-              ),
-            ]),
-            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    child: Text(
+                      'INFORMASI PORTER',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.grey500,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  _InfoCard(children: [
+                    _InfoRow(
+                      icon: Icons.phone_android_rounded,
+                      label: 'No. HP',
+                      value: porter?.noHp ?? '-',
+                    ),
+                    const Divider(height: 1),
+                    _InfoRow(
+                      icon: Icons.check_circle_outline_rounded,
+                      label: 'Total Selesai',
+                      value: '${porter?.totalSelesai ?? 0} order',
+                    ),
+                    const Divider(height: 1),
+                    _InfoRow(
+                      icon: Icons.badge_outlined,
+                      label: 'Status Akun',
+                      value: _verifLabel(porter?.statusVerifikasi ?? ''),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
 
-            // Menu
-            _InfoCard(children: [
-              _MenuRow(
-                icon: Icons.upload_file_rounded,
-                label: 'Verifikasi Dokumen',
-                onTap: () => context.push('/porter/verification'),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    child: Text(
+                      'PENGATURAN',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.grey500,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  _InfoCard(children: [
+                    _MenuRow(
+                      icon: Icons.upload_file_rounded,
+                      label: 'Verifikasi Dokumen',
+                      onTap: () => context.push('/porter/verification'),
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.help_outline_rounded,
+                      label: 'Bantuan & FAQ',
+                      onTap: () {},
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
+                      icon: Icons.logout_rounded,
+                      label: 'Keluar dari Akun',
+                      color: AppColors.error,
+                      onTap: () async {
+                        await auth.logout();
+                        if (context.mounted) context.go('/login');
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+
+                  // App version
+                  Center(
+                    child: Text(
+                      'Go-Dah Porter v1.0.0\nJasa Angkut Barang Mahasiswa',
+                      style: AppTextStyles.caption.copyWith(height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
               ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.help_outline_rounded,
-                label: 'Bantuan',
-                onTap: () {},
-              ),
-              const Divider(height: 1),
-              _MenuRow(
-                icon: Icons.logout_rounded,
-                label: 'Keluar',
-                color: AppColors.error,
-                onTap: () async {
-                  await auth.logout();
-                  if (context.mounted) context.go('/login');
-                },
-              ),
-            ]),
+            ),
           ],
         ),
       ),
