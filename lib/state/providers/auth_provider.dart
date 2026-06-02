@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../core/services/fcm_service.dart';
 import '../models/user_model.dart';
 import '../models/porter_model.dart';
 import '../models/admin_model.dart';
@@ -347,6 +347,7 @@ class AuthProvider extends ChangeNotifier {
 
       _currentAdmin = AdminModel.fromJson(res);
       notifyListeners();
+      await FcmService.instance.saveAdminToken(_currentAdmin!.id);
 
       return Success(_currentAdmin!);
     } on PostgrestException catch (e) {
@@ -366,6 +367,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     if (_currentAdmin != null) {
+      await FcmService.instance.clearAdminToken(_currentAdmin!.id);
       _currentAdmin = null;
       notifyListeners();
       return;

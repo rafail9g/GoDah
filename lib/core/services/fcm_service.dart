@@ -35,7 +35,7 @@ class FcmService {
       _handleNotifTap(initialMessage);
     }
 
-    debugPrint('✅ FCM Service initialized');
+    debugPrint('FCM Service initialized');
   }
 
   Future<void> _requestPermission() async {
@@ -46,7 +46,7 @@ class FcmService {
       provisional: false,
     );
     debugPrint(
-      '🔔 Notification permission: ${settings.authorizationStatus}',
+      ' Notification permission: ${settings.authorizationStatus}',
     );
   }
 
@@ -64,7 +64,7 @@ class FcmService {
         iOS: iosSettings,
       ),
       onDidReceiveNotificationResponse: (details) {
-        debugPrint('🔔 Notif tapped payload: ${details.payload}');
+        debugPrint('Notif tapped payload: ${details.payload}');
       },
     );
 
@@ -83,7 +83,7 @@ class FcmService {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('📩 Foreground FCM: ${message.notification?.title}');
+    debugPrint('Foreground FCM: ${message.notification?.title}');
 
     final notification = message.notification;
     if (notification == null) return;
@@ -114,16 +114,16 @@ class FcmService {
   }
 
   void _handleNotifTap(RemoteMessage message) {
-    debugPrint('🔔 Notif tap data: ${message.data}');
+    debugPrint('Notif tap data: ${message.data}');
   }
 
   Future<String?> getToken() async {
     try {
       final token = await _messaging.getToken();
-      debugPrint('📱 FCM Token: $token');
+      debugPrint('FCM Token: $token');
       return token;
     } catch (e) {
-      debugPrint('❌ Gagal ambil FCM token: $e');
+      debugPrint('Gagal ambil FCM token: $e');
       return null;
     }
   }
@@ -138,17 +138,17 @@ class FcmService {
         'fcm_token_updated_at': DateTime.now().toIso8601String(),
       }).eq('id', adminId);
 
-      debugPrint('✅ FCM token admin disimpan');
+      debugPrint('FCM token admin disimpan');
 
       _messaging.onTokenRefresh.listen((newToken) async {
         await _supabase.from('admins').update({
           'fcm_token': newToken,
           'fcm_token_updated_at': DateTime.now().toIso8601String(),
         }).eq('id', adminId);
-        debugPrint('🔄 FCM token admin diperbarui');
+        debugPrint('FCM token admin diperbarui');
       });
     } catch (e) {
-      debugPrint('❌ Gagal simpan FCM token: $e');
+      debugPrint('Gagal simpan FCM token: $e');
     }
   }
 
@@ -159,49 +159,35 @@ class FcmService {
       }).eq('id', adminId);
 
       await _messaging.deleteToken();
-      debugPrint('🗑️ FCM token admin dihapus');
+      debugPrint('FCM token admin dihapus');
     } catch (e) {
-      debugPrint('❌ Gagal hapus FCM token: $e');
+      debugPrint('Gagal hapus FCM token: $e');
     }
   }
 
-  Future<void> sendVerifikasiNotifToAdmins({
-    required String porterNama,
-    required String porterId,
-  }) async {
-    try {
-      final admins = await _supabase
-          .from('admins')
-          .select('id, fcm_token')
-          .not('fcm_token', 'is', null);
-
-      if ((admins as List).isEmpty) {
-        debugPrint('⚠️ Tidak ada admin dengan FCM token');
-        return;
-      }
-
-      for (final admin in admins) {
-        final fcmToken = admin['fcm_token'] as String?;
-        if (fcmToken == null || fcmToken.isEmpty) continue;
-
-        await _sendFcmMessage(
-          token: fcmToken,
-          title: '📋 Pengajuan Verifikasi Baru',
-          body: '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
-          data: {
-            'type': 'verifikasi_porter',
-            'porter_id': porterId,
-            'porter_nama': porterNama,
-          },
-        );
-      }
-
-      debugPrint('✅ Notif verifikasi terkirim ke ${admins.length} admin');
-    } catch (e) {
-      debugPrint('❌ Gagal kirim notif verifikasi: $e');
-    }
+ /// Kirim notif ke SATU admin spesifik (A → B, bukan C)
+/// Kirim notif ke 1 admin spesifik (A → B, bukan C)
+Future<void> sendVerifikasiNotifToAdmin({
+  required String porterNama,
+  required String porterId,
+  required String targetAdminId,
+}) async {
+  try {
+    await _supabase.functions.invoke(
+      'send-fcm-notification',
+      body: {
+        'target_admin_id': targetAdminId,
+        'porter_nama': porterNama,
+        'porter_id': porterId,
+        'title': 'Pengajuan Verifikasi Porter Baru',
+        'body': '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
+      },
+    );
+    debugPrint('✅ Notif terkirim ke admin $targetAdminId');
+  } catch (e) {
+    debugPrint('❌ Gagal kirim notif: $e');
   }
-
+}
   Future<void> _sendFcmMessage({
     required String token,
     required String title,
@@ -219,7 +205,7 @@ class FcmService {
         },
       );
     } catch (e) {
-      debugPrint('❌ Gagal invoke edge function: $e');
+      debugPrint('Gagal invoke edge function: $e');
     }
   }
 }

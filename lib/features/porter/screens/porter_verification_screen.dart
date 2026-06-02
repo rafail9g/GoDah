@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
-
+import '../../../core/services/fcm_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -23,6 +23,7 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
   File? _fotoKtp;
   bool _loading = false;
   bool _submitted = false;
+  
 
   // Ambil foto KTP pakai KAMERA langsung
   Future<void> _ambilFotoKtp() async {
@@ -37,48 +38,69 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
     }
   }
 
-  Future<void> _kirimVerifikasi() async {
-    final auth = context.read<AuthProvider>();
-    final porter = auth.currentPorter;
-    if (porter == null || _fotoKtp == null) return;
 
-    setState(() => _loading = true);
+Future<void> _kirimVerifikasi() async {
+  final auth = context.read<AuthProvider>();
+  final porter = auth.currentPorter;
+  if (porter == null || _fotoKtp == null) return;
 
-    try {
-      final fileName =
-          'verifikasi/${porter.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+  setState(() => _loading = true);
 
-      await _supabase.storage
-          .from('dokumen-porter')
-          .upload(fileName, _fotoKtp!);
+  try {
+    // 1. Upload foto KTP
+    final fileName =
+        'verifikasi/${porter.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-      final dokumenUrl = _supabase.storage
-          .from('dokumen-porter')
-          .getPublicUrl(fileName);
+    await _supabase.storage
+        .from('dokumen-porter')
+        .upload(fileName, _fotoKtp!);
 
-      await _supabase.from('porter_verifikasi').insert({
-        'porter_id': porter.id,
-        'status': 'menunggu',
-        'dokumen_url': dokumenUrl,
-      });
+    final dokumenUrl = _supabase.storage
+        .from('dokumen-porter')
+        .getPublicUrl(fileName);
 
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _submitted = true;
-      });
-      await auth.reloadPorterProfile();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal upload: $e'),
-          backgroundColor: AppColors.error,
-        ),
+    // 2. Insert data verifikasi
+    await _supabase.from('porter_verifikasi').insert({
+      'porter_id': porter.id,
+      'status': 'menunggu',
+      'dokumen_url': dokumenUrl,
+    });
+
+    // 3. Ambil 1 admin sebagai target (Perangkat B)
+    final adminRes = await _supabase
+        .from('admins')
+        .select('id')
+        .not('fcm_token', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+    // 4. Kirim notif hanya ke admin itu (bukan ke user/porter lain)
+    if (adminRes != null) {
+      await FcmService.instance.sendVerifikasiNotifToAdmin(
+        porterNama: porter.nama,
+        porterId: porter.id,
+        targetAdminId: adminRes['id'] as String,
       );
     }
+
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _submitted = true;
+    });
+    await auth.reloadPorterProfile();
+
+  } catch (e) {
+    if (!mounted) return;
+    setState(() => _loading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Gagal upload: $e'),
+        backgroundColor: AppColors.error,
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
