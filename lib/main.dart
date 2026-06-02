@@ -11,17 +11,16 @@ import 'core/services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
-  await FcmService.instance.init();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await Supabase.initialize(
     url: 'https://eohytcqfugefhjydhtrp.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaHl0Y3FmdWdlZmhqeWRodHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTI4MDQsImV4cCI6MjA5NDU4ODgwNH0.l6uozOQW8jk_8WTB9ytv87oGDjLNwqrbISUsPQ33Oz8',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaHl0Y3FmdWdlZmhqeWRodHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTI4MDQsImV4cCI6MjA5NDU4ODgwNH0.l6uozOQW8jk_8WTB9ytv87oGDjLNwqrbISUsPQ33Oz8',
   );
+
+  await FcmService.instance.init();
 
   runApp(const GoDahApp());
 }
