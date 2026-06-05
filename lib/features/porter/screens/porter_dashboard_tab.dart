@@ -34,20 +34,47 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   bool _loading = true;
 
   // ── GPS Stream state ──────────────────────────────────────────
-  // Slide 12 best practice: stream dengan interval & distance filter
   Stream<Position>? _locationStream;
   Position? _currentPosition;
+
+  // ── Realtime channel untuk auto-refresh list order ────────────
+  RealtimeChannel? _ordersChannel;
 
   @override
   void initState() {
     super.initState();
     _load();
     _startGPSStream();
+    _subscribeOrdersRealtime();
   }
 
   @override
   void dispose() {
+    if (_ordersChannel != null) {
+      _supabase.removeChannel(_ordersChannel!);
+    }
     super.dispose();
+  }
+
+  // ── Realtime: Auto-refresh list order kalau ada perubahan ────
+  // FIX race condition: kalau porter lain ambil order, list kita langsung update
+  void _subscribeOrdersRealtime() {
+    _ordersChannel = _supabase
+        .channel('orders-dashboard-porter')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'orders',
+          callback: (payload) {
+            // Kalau ada order yang statusnya berubah dari 'menunggu' → refresh list
+            final newStatus = payload.newRecord['status'] as String?;
+            final oldStatus = payload.oldRecord['status'] as String?;
+            if (oldStatus == 'menunggu' && newStatus != 'menunggu') {
+              if (mounted) _load();
+            }
+          },
+        )
+        .subscribe();
   }
 
   // ── Slide 9: Start GPS stream untuk update posisi porter ──────
@@ -61,10 +88,13 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       if (!mounted) return;
       setState(() => _currentPosition = position);
 
-      // Update koordinat porter di database (untuk tracking user)
+      // FIX: Update GPS kalau online ATAU kalau ada order aktif yang sedang dijalankan
+      // Penting: porter bisa saja toggle offline tapi order tetap harus dilacak user
       final auth = context.read<AuthProvider>();
       final porter = auth.currentPorter;
-      if (porter != null && _isOnline) {
+      final punyaOrderAktif = _myActiveOrders.isNotEmpty;
+
+      if (porter != null && (_isOnline || punyaOrderAktif)) {
         await _supabase.from('porters').update({
           'latitude': position.latitude,
           'longitude': position.longitude,
@@ -161,13 +191,35 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
 
     try {
-      // Upload foto barang ke storage
-      final fotoUrl = await _uploadFoto(foto, 'barang-order/$orderId-sebelum.jpg');
+      // ── ATOMIC CHECK: update hanya jika order masih 'menunggu' dan belum ada porter ──
+      // Ini mencegah 2 porter menerima orderan yang sama secara bersamaan (race condition)
+      final updated = await _supabase
+          .from('orders')
+          .update({
+            'porter_id': porter.id,
+            'status': 'diterima',
+          })
+          .eq('id', orderId)
+          .eq('status', 'menunggu')      // ← hanya update kalau masih menunggu
+          .isFilter('porter_id', null)   // ← hanya update kalau belum ada porter
+          .select('id');                 // ← kembalikan data kalau berhasil
 
-      await _supabase.from('orders').update({
-        'porter_id': porter.id,
-        'status': 'diterima',
-      }).eq('id', orderId);
+      // Kalau array kosong → porter lain sudah lebih dulu ambil order ini
+      if (updated.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Orderan ini sudah diambil porter lain. Coba yang lain!'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+          _load(); // Refresh list order
+        }
+        return;
+      }
+
+      // Upload foto barang ke storage (setelah berhasil klaim order)
+      final fotoUrl = await _uploadFoto(foto, 'barang-order/$orderId-sebelum.jpg');
 
       await _supabase.from('order_tracking').insert({
         'order_id': orderId,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -276,6 +277,22 @@ class _ActiveOrderList extends StatelessWidget {
         itemBuilder: (_, i) => _ActiveOrderCard(
           order: orders[i],
           onBatal: () => onBatal(orders[i]['id'] as String),
+          onLacak: () {
+            final o = orders[i];
+            final porter = o['porters'] as Map<String, dynamic>?;
+            final porterId = porter?['id'] as String? ?? '';
+            if (porterId.isEmpty) return;
+            context.push('/user/tracking', extra: {
+              'orderId': o['id'] as String,
+              'porterId': porterId,
+              'latJemput': (o['lat_jemput'] as num?)?.toDouble() ?? 0.0,
+              'lngJemput': (o['lng_jemput'] as num?)?.toDouble() ?? 0.0,
+              'latTujuan': (o['lat_tujuan'] as num?)?.toDouble() ?? 0.0,
+              'lngTujuan': (o['lng_tujuan'] as num?)?.toDouble() ?? 0.0,
+              'lokasiJemput': o['lokasi_jemput'] as String? ?? '-',
+              'lokasiTujuan': o['lokasi_tujuan'] as String? ?? '-',
+            });
+          },
         ),
       ),
     );
@@ -285,8 +302,13 @@ class _ActiveOrderList extends StatelessWidget {
 class _ActiveOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
   final VoidCallback onBatal;
+  final VoidCallback onLacak;
 
-  const _ActiveOrderCard({required this.order, required this.onBatal});
+  const _ActiveOrderCard({
+    required this.order,
+    required this.onBatal,
+    required this.onLacak,
+  });
 
   Color _statusColor(String s) => switch (s) {
     'menunggu' => AppColors.statusMenunggu,
@@ -458,6 +480,28 @@ class _ActiveOrderCard extends StatelessWidget {
                       minimumSize: const Size.fromHeight(40),
                     ),
                     child: const Text('Batalkan Order'),
+                  ),
+                ],
+
+                // Lacak Porter (hanya kalau sudah ada porter & belum selesai)
+                if (status != 'menunggu' && status != 'selesai' && porter != null) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: onLacak,
+                    icon: const Icon(Icons.location_searching_rounded, size: 18),
+                    label: const Text(
+                      'Lacak Porter',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3C72),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(46),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 2,
+                    ),
                   ),
                 ],
               ],

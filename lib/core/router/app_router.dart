@@ -7,6 +7,7 @@ import '../../features/auth/screens/register_user_screen.dart';
 import '../../features/auth/screens/register_porter_screen.dart';
 import '../../features/auth/screens/role_picker_screen.dart';
 import '../../features/user/screens/user_home_screen.dart';
+import '../../features/user/screens/user_tracking_screen.dart';
 import '../../features/porter/screens/porter_home_screen.dart';
 import '../../features/porter/screens/porter_verification_screen.dart';
 import '../../features/admin/screens/admin_home_screen.dart';
@@ -39,7 +40,6 @@ abstract class AppRouter {
         if (isAuthRoute || isSplash || isChooseRole) {
           return '/admin/home';
         }
-
         return null;
       }
 
@@ -47,14 +47,11 @@ abstract class AppRouter {
         if (isAuthRoute || isSplash || isChooseRole) {
           return auth.role == 'porter' ? '/porter/home' : '/user/home';
         }
-
         return null;
       }
 
       if (isAuthRoute) return null;
-
       if (isSplash) return '/login';
-
       return '/login';
     },
     routes: [
@@ -74,6 +71,25 @@ abstract class AppRouter {
         builder: (_, __) => const RegisterPorterScreen(),
       ),
       GoRoute(path: '/user/home', builder: (_, __) => const UserHomeScreen()),
+
+      // ── ROUTE TRACKING — dipanggil dari user_history_tab ──
+      GoRoute(
+        path: '/user/tracking',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return UserTrackingScreen(
+            orderId:      extra['orderId']      as String,
+            porterId:     extra['porterId']     as String,
+            latJemput:    extra['latJemput']    as double,
+            lngJemput:    extra['lngJemput']    as double,
+            latTujuan:    extra['latTujuan']    as double,
+            lngTujuan:    extra['lngTujuan']    as double,
+            lokasiJemput: extra['lokasiJemput'] as String,
+            lokasiTujuan: extra['lokasiTujuan'] as String,
+          );
+        },
+      ),
+
       GoRoute(
         path: '/porter/home',
         builder: (_, __) => const PorterHomeScreen(),
