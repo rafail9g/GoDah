@@ -1,8 +1,10 @@
 // lib/features/user/screens/user_tracking_screen.dart
-// User melacak porter secara real-time (seperti Gojek)
-// Fix: (1) fallback kalau GPS porter null, (2) pulse animation marker porter
+// UPDATED: Real-time GPS tracking porter kayak Gojek/GoSend
+// - Auto-pan ke posisi porter tiap ada update
+// - Progress bar status perjalanan
+// - Tampil foto bukti penjemputan jika sudah diambil
+// - Status info yang lebih informatif
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -39,137 +41,89 @@ class UserTrackingScreen extends StatefulWidget {
   State<UserTrackingScreen> createState() => _UserTrackingScreenState();
 }
 
-class _UserTrackingScreenState extends State<UserTrackingScreen>
-    with TickerProviderStateMixin {
+class _UserTrackingScreenState extends State<UserTrackingScreen> {
   final _mapController = MapController();
+
   LatLng? _porterLatLng;
   String _orderStatus = '';
   String _porterNama = '-';
   String _porterPhone = '-';
   bool _isLoading = true;
-
-  // Pulse animation untuk marker porter
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
-
-  // Polling timer — fallback kalau realtime tidak jalan
-  Timer? _pollingTimer;
+  String? _fotoBuktiJemput; // Foto barang saat porter tiba di jemput
 
   late final RealtimeChannel _channel;
+
+  // Urutan status untuk progress indicator
+  static const _statusSteps = [
+    'diterima',
+    'menuju_lokasi',
+    'dalam_perjalanan',
+    'sampai_tujuan',
+    'selesai',
+  ];
 
   @override
   void initState() {
     super.initState();
-
-    // Setup pulse animation
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
     _loadInitialData();
-    _subscribeRealtimePorter();
-
-    // Polling tiap 8 detik sebagai fallback realtime
-    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      _pollPorterLocation();
-    });
+    _subscribeRealtime();
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _pollingTimer?.cancel();
     _supabase.removeChannel(_channel);
     super.dispose();
   }
 
   Future<void> _loadInitialData() async {
     try {
+      // Data porter (nama, HP, posisi GPS terkini)
       final porterData = await _supabase
           .from('porters')
           .select('nama, no_hp, latitude, longitude')
           .eq('id', widget.porterId)
           .single();
 
+      // Status order terkini
       final orderData = await _supabase
           .from('orders')
           .select('status')
           .eq('id', widget.orderId)
           .single();
+
+      // Cek apakah ada foto bukti jemput
+      final buktiJemput = await _supabase
+          .from('bukti_pengiriman')
+          .select('foto_url')
+          .eq('order_id', widget.orderId)
+          .eq('jenis_bukti', 'pickup')
+          .maybeSingle();
 
       if (mounted) {
         setState(() {
           _porterNama = porterData['nama'] as String? ?? '-';
           _porterPhone = porterData['no_hp'] as String? ?? '-';
           _orderStatus = orderData['status'] as String? ?? '';
+          _fotoBuktiJemput = buktiJemput?['foto_url'] as String?;
 
           final lat = (porterData['latitude'] as num?)?.toDouble();
           final lng = (porterData['longitude'] as num?)?.toDouble();
-
-          if (lat != null && lng != null) {
+          if (lat != null && lng != null && lat != 0 && lng != 0) {
             _porterLatLng = LatLng(lat, lng);
-          } else {
-            // FIX: GPS porter belum ada → gunakan lokasi jemput sebagai estimasi awal
-            // Marker akan update otomatis begitu porter mulai jalan
-            _porterLatLng = LatLng(widget.latJemput, widget.lngJemput);
           }
           _isLoading = false;
         });
-
-        // Gerakkan kamera ke posisi porter
-        if (_porterLatLng != null) {
-          _mapController.move(_porterLatLng!, 15.5);
-        }
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Polling manual sebagai fallback kalau realtime Supabase lambat/putus
-  Future<void> _pollPorterLocation() async {
-    if (!mounted) return;
-    try {
-      final porterData = await _supabase
-          .from('porters')
-          .select('latitude, longitude')
-          .eq('id', widget.porterId)
-          .single();
-
-      final lat = (porterData['latitude'] as num?)?.toDouble();
-      final lng = (porterData['longitude'] as num?)?.toDouble();
-
-      if (lat != null && lng != null && mounted) {
-        final newPos = LatLng(lat, lng);
-        // Hanya update kalau posisi benar-benar berubah
-        if (_porterLatLng == null ||
-            (_porterLatLng!.latitude - lat).abs() > 0.00001 ||
-            (_porterLatLng!.longitude - lng).abs() > 0.00001) {
-          setState(() => _porterLatLng = newPos);
-          _mapController.move(newPos, 15.5);
-        }
-      }
-
-      // Update status order juga
-      final orderData = await _supabase
-          .from('orders')
-          .select('status')
-          .eq('id', widget.orderId)
-          .single();
-      final newStatus = orderData['status'] as String?;
-      if (newStatus != null && newStatus != _orderStatus && mounted) {
-        setState(() => _orderStatus = newStatus);
-      }
-    } catch (_) {}
-  }
-
-  void _subscribeRealtimePorter() {
+  // ── Realtime: posisi porter + status order update otomatis ───────────────
+  void _subscribeRealtime() {
     _channel = _supabase
-        .channel('porter-tracking-${widget.porterId}-${widget.orderId}')
+        .channel('tracking-${widget.orderId}')
+        // Update posisi GPS porter
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -183,13 +137,15 @@ class _UserTrackingScreenState extends State<UserTrackingScreen>
             final newData = payload.newRecord;
             final lat = (newData['latitude'] as num?)?.toDouble();
             final lng = (newData['longitude'] as num?)?.toDouble();
-            if (lat != null && lng != null && mounted) {
-              final newPos = LatLng(lat, lng);
-              setState(() => _porterLatLng = newPos);
-              _mapController.move(newPos, 15.5);
+
+            if (lat != null && lng != null && lat != 0 && lng != 0 && mounted) {
+              setState(() => _porterLatLng = LatLng(lat, lng));
+              // Auto-pan kamera ke posisi porter terbaru
+              _mapController.move(LatLng(lat, lng), _mapController.camera.zoom);
             }
           },
         )
+        // Update status order
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -203,270 +159,260 @@ class _UserTrackingScreenState extends State<UserTrackingScreen>
             final newStatus = payload.newRecord['status'] as String?;
             if (newStatus != null && mounted) {
               setState(() => _orderStatus = newStatus);
-              // Kalau order selesai → stop polling
-              if (newStatus == 'selesai') {
-                _pollingTimer?.cancel();
+              // Kalau ada foto baru (porter tiba di jemput), reload
+              if (newStatus == 'dalam_perjalanan') {
+                _loadFotoBuktiJemput();
               }
+            }
+          },
+        )
+        // Notif kalau ada foto bukti baru diupload porter
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'bukti_pengiriman',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'order_id',
+            value: widget.orderId,
+          ),
+          callback: (payload) {
+            final jenisBukti = payload.newRecord['jenis_bukti'] as String?;
+            if (jenisBukti == 'pickup' && mounted) {
+              _loadFotoBuktiJemput();
             }
           },
         )
         .subscribe();
   }
 
+  Future<void> _loadFotoBuktiJemput() async {
+    try {
+      final bukti = await _supabase
+          .from('bukti_pengiriman')
+          .select('foto_url')
+          .eq('order_id', widget.orderId)
+          .eq('jenis_bukti', 'pickup')
+          .maybeSingle();
+
+      if (mounted && bukti != null) {
+        setState(() => _fotoBuktiJemput = bukti['foto_url'] as String?);
+      }
+    } catch (_) {}
+  }
+
+  // ── Helper: warna dan label per status ───────────────────────────────────
   Color _statusColor(String s) => switch (s) {
-        'diterima' => AppColors.statusDiterima,
-        'menuju_lokasi' => AppColors.statusMenujuLokasi,
-        'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
-        'sampai_tujuan' => AppColors.statusSampaiTujuan,
-        'selesai' => AppColors.statusSelesai,
-        _ => AppColors.statusMenunggu,
-      };
+    'diterima' => AppColors.statusDiterima,
+    'menuju_lokasi' => AppColors.statusMenujuLokasi,
+    'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
+    'sampai_tujuan' => AppColors.statusSampaiTujuan,
+    'selesai' => AppColors.statusSelesai,
+    _ => AppColors.statusMenunggu,
+  };
 
   String _statusLabel(String s) => switch (s) {
-        'diterima' => '✅ Porter menerima ordermu',
-        'menuju_lokasi' => '🚶 Porter sedang menuju lokasimu',
-        'dalam_perjalanan' => '🚚 Barang sedang dalam perjalanan',
-        'sampai_tujuan' => '📍 Barang sudah sampai tujuan',
-        'selesai' => '🎉 Order selesai!',
-        _ => '🕐 Mencari porter...',
-      };
+    'diterima' => '✅ Porter menerima ordermu',
+    'menuju_lokasi' => '🚶 Porter sedang menuju lokasimu',
+    'dalam_perjalanan' => '🚚 Barangmu sedang dalam perjalanan',
+    'sampai_tujuan' => '📍 Barangmu sudah sampai di tujuan!',
+    'selesai' => '🎉 Order selesai!',
+    _ => '🕐 Mencari porter...',
+  };
 
-  // Tombol "Pusatkan Peta" — tap untuk kembali lihat posisi porter
-  void _centerOnPorter() {
-    if (_porterLatLng != null) {
-      _mapController.move(_porterLatLng!, 15.5);
-    }
+  String _statusSubInfo(String s) => switch (s) {
+    'diterima' => 'Porter sudah lihat rute ke lokasimu',
+    'menuju_lokasi' => 'Lihat posisi porter di peta secara real-time',
+    'dalam_perjalanan' => 'Porter sudah foto barangmu saat dijemput',
+    'sampai_tujuan' => 'Silakan konfirmasi penerimaan barang',
+    'selesai' => 'Jangan lupa beri rating untuk porter!',
+    _ => '',
+  };
+
+  // Index step untuk progress bar
+  int get _currentStep {
+    final idx = _statusSteps.indexOf(_orderStatus);
+    return idx < 0 ? 0 : idx;
   }
 
   @override
   Widget build(BuildContext context) {
     final lokasiJemput = LatLng(widget.latJemput, widget.lngJemput);
     final lokasiTujuan = LatLng(widget.latTujuan, widget.lngTujuan);
-    final statusColor = _statusColor(_orderStatus);
-    final isSelesai = _orderStatus == 'selesai';
+    final color = _statusColor(_orderStatus);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Lacak Porter'),
+        title: const Text('Lacak Portermu'),
         backgroundColor: const Color(0xFF1E3C72),
-        foregroundColor: Colors.white,
         actions: [
-          // Tombol pusatkan peta ke posisi porter
-          IconButton(
-            icon: const Icon(Icons.my_location_rounded),
-            tooltip: 'Pusatkan ke porter',
-            onPressed: _centerOnPorter,
-          ),
+          // Tombol center ke posisi porter
+          if (_porterLatLng != null)
+            IconButton(
+              icon: const Icon(Icons.my_location_rounded),
+              tooltip: 'Ke posisi porter',
+              onPressed: () => _mapController.move(_porterLatLng!, 16.0),
+            ),
         ],
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : Column(
               children: [
-                // ── Status Bar ──────────────────────────────────────
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 400),
+                // ── STATUS HEADER ────────────────────────────────────────
+                Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 14),
-                  color: statusColor.withOpacity(0.12),
-                  child: Row(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: color.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Dot animasi kalau order masih aktif
-                      if (!isSelesai)
-                        AnimatedBuilder(
-                          animation: _pulseAnim,
-                          builder: (_, __) => Opacity(
-                            opacity: _pulseAnim.value,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                color: statusColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                      Text(
+                        _statusLabel(_orderStatus),
+                        style: AppTextStyles.labelLg.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_statusSubInfo(_orderStatus).isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _statusSubInfo(_orderStatus),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.grey600,
                           ),
                         ),
-                      Expanded(
-                        child: Text(
-                          _statusLabel(_orderStatus),
-                          style: AppTextStyles.labelLg.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      // Progress steps
+                      _StatusProgressBar(
+                        steps: const [
+                          'Diterima',
+                          'Menuju Jemput',
+                          'Di Perjalanan',
+                          'Sampai',
+                          'Selesai',
+                        ],
+                        currentStep: _currentStep,
+                        activeColor: color,
                       ),
                     ],
                   ),
                 ),
 
-                // ── PETA TRACKING ────────────────────────────────────
+                // ── PETA REAL-TIME ───────────────────────────────────────
                 Expanded(
-                  flex: 3,
-                  child: Stack(
+                  flex: 5,
+                  child: FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _porterLatLng ?? lokasiJemput,
+                      initialZoom: 15.5,
+                    ),
                     children: [
-                      FlutterMap(
-                        mapController: _mapController,
-                        options: MapOptions(
-                          initialCenter: _porterLatLng ?? lokasiJemput,
-                          initialZoom: 15.5,
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.go_dah',
-                          ),
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.go_dah',
+                      ),
 
-                          // Garis rute putus-putus: jemput → tujuan
-                          PolylineLayer(
-                            polylines: [
-                              Polyline(
-                                points: [lokasiJemput, lokasiTujuan],
-                                strokeWidth: 3,
-                                color: Colors.grey.shade300,
-                                isDotted: true,
-                              ),
-                              // Garis solid: posisi porter → tujuan
-                              if (_porterLatLng != null)
-                                Polyline(
-                                  points: [_porterLatLng!, lokasiTujuan],
-                                  strokeWidth: 4,
-                                  color: const Color(0xFF1E3C72),
-                                ),
-                            ],
+                      // Garis rute jemput → tujuan (abu-abu putus)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [lokasiJemput, lokasiTujuan],
+                            strokeWidth: 3,
+                            color: AppColors.grey300,
+                            isDotted: true,
                           ),
-
-                          MarkerLayer(
-                            markers: [
-                              // Marker lokasi jemput (hijau)
-                              Marker(
-                                point: lokasiJemput,
-                                width: 44,
-                                height: 44,
-                                child: const Icon(
-                                  Icons.radio_button_checked_rounded,
-                                  color: AppColors.success,
-                                  size: 36,
-                                ),
-                              ),
-                              // Marker tujuan (merah)
-                              Marker(
-                                point: lokasiTujuan,
-                                width: 44,
-                                height: 44,
-                                child: const Icon(
-                                  Icons.location_on_rounded,
-                                  color: AppColors.error,
-                                  size: 36,
-                                ),
-                              ),
-                              // Marker porter dengan pulse animation
-                              if (_porterLatLng != null)
-                                Marker(
-                                  point: _porterLatLng!,
-                                  width: 60,
-                                  height: 60,
-                                  child: AnimatedBuilder(
-                                    animation: _pulseAnim,
-                                    builder: (_, child) => Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        // Lingkaran pulse di luar
-                                        if (!isSelesai)
-                                          Container(
-                                            width: 60 * _pulseAnim.value,
-                                            height: 60 * _pulseAnim.value,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF1E3C72)
-                                                  .withOpacity(
-                                                      0.25 * (1 - (_pulseAnim.value - 0.6) / 0.4)),
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        // Ikon porter
-                                        Container(
-                                          width: 44,
-                                          height: 44,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF1E3C72),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: Colors.white, width: 2),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: const Color(0xFF1E3C72)
-                                                    .withOpacity(0.4),
-                                                blurRadius: 10,
-                                                spreadRadius: 2,
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Icon(
-                                            Icons.directions_run_rounded,
-                                            color: Colors.white,
-                                            size: 22,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                          // Garis porter → destinasi terkini (biru solid)
+                          if (_porterLatLng != null)
+                            Polyline(
+                              points: [
+                                _porterLatLng!,
+                                // Arahkan ke tujuan relevan berdasarkan status
+                                (_orderStatus == 'dalam_perjalanan' ||
+                                        _orderStatus == 'sampai_tujuan')
+                                    ? lokasiTujuan
+                                    : lokasiJemput,
+                              ],
+                              strokeWidth: 4,
+                              color: const Color(0xFF1E3C72),
+                            ),
                         ],
                       ),
 
-                      // Label jemput & tujuan di atas peta
-                      Positioned(
-                        top: 10,
-                        left: 10,
-                        child: _MapLabel(
-                            icon: Icons.radio_button_on_rounded,
-                            color: AppColors.success,
-                            text: 'Jemput'),
-                      ),
-                      Positioned(
-                        top: 10,
-                        left: 90,
-                        child: _MapLabel(
-                            icon: Icons.location_on_rounded,
-                            color: AppColors.error,
-                            text: 'Tujuan'),
+                      // Markers
+                      MarkerLayer(
+                        markers: [
+                          // Lokasi jemput (hijau)
+                          Marker(
+                            point: lokasiJemput,
+                            width: 44,
+                            height: 44,
+                            child: _MapPin(
+                              icon: Icons.radio_button_checked_rounded,
+                              color: AppColors.success,
+                              label: 'Jemput',
+                            ),
+                          ),
+                          // Tujuan (merah)
+                          if (widget.latTujuan != 0)
+                            Marker(
+                              point: lokasiTujuan,
+                              width: 44,
+                              height: 60,
+                              child: _MapPin(
+                                icon: Icons.location_on_rounded,
+                                color: AppColors.error,
+                                label: 'Tujuan',
+                              ),
+                            ),
+                          // Porter marker — bergerak real-time
+                          if (_porterLatLng != null)
+                            Marker(
+                              point: _porterLatLng!,
+                              width: 54,
+                              height: 54,
+                              child: _PorterMarker(color: color),
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
 
-                // ── Info Panel Porter ────────────────────────────────
+                // ── INFO PANEL PORTER ─────────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                  decoration: const BoxDecoration(
-                    color: AppColors.white,
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, -2))
-                    ],
-                  ),
+                  color: AppColors.white,
+                  padding: const EdgeInsets.all(16),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Porter info row
                       Row(
                         children: [
                           CircleAvatar(
-                            radius: 26,
+                            radius: 24,
                             backgroundColor: AppColors.primary100,
                             child: Text(
                               _porterNama.isNotEmpty
                                   ? _porterNama[0].toUpperCase()
                                   : 'P',
-                              style: AppTextStyles.h3
-                                  .copyWith(color: AppColors.primary),
+                              style: AppTextStyles.h3.copyWith(
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -474,13 +420,14 @@ class _UserTrackingScreenState extends State<UserTrackingScreen>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Porter Kamu',
-                                    style: AppTextStyles.caption),
-                                Text(_porterNama,
-                                    style: AppTextStyles.h4),
-                                Text(_porterPhone,
-                                    style: AppTextStyles.bodySm.copyWith(
-                                        color: AppColors.grey500)),
+                                Text('Portermu', style: AppTextStyles.caption),
+                                Text(_porterNama, style: AppTextStyles.h4),
+                                Text(
+                                  _porterPhone,
+                                  style: AppTextStyles.bodySm.copyWith(
+                                    color: AppColors.grey500,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -491,21 +438,77 @@ class _UserTrackingScreenState extends State<UserTrackingScreen>
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size(0, 38),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12),
+                                horizontal: 12,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      const Divider(height: 1),
+
                       const SizedBox(height: 12),
+
+                      // Rute ringkas
+                      _RouteRow(label: 'Jemput', text: widget.lokasiJemput),
+                      const SizedBox(height: 4),
                       _RouteRow(
-                          label: 'Jemput', text: widget.lokasiJemput),
-                      const SizedBox(height: 6),
-                      _RouteRow(
-                          label: 'Tujuan',
-                          text: widget.lokasiTujuan,
-                          isDestination: true),
+                        label: 'Tujuan',
+                        text: widget.lokasiTujuan,
+                        isDestination: true,
+                      ),
+
+                      // Foto barang saat dijemput (muncul ketika porter
+                      // sudah tiba & ngambil foto)
+                      if (_fotoBuktiJemput != null) ...[
+                        const Divider(height: 20),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.camera_alt_rounded,
+                              size: 14,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Foto Barang saat Dijemput',
+                              style: AppTextStyles.labelLg,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () => showDialog(
+                            context: context,
+                            builder: (_) => Dialog(
+                              backgroundColor: Colors.black,
+                              child: InteractiveViewer(
+                                child: Image.network(
+                                  _fotoBuktiJemput!,
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              _fotoBuktiJemput!,
+                              height: 100,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 80,
+                                color: AppColors.grey100,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.broken_image_rounded,
+                                    color: AppColors.grey400,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -515,33 +518,132 @@ class _UserTrackingScreenState extends State<UserTrackingScreen>
   }
 }
 
-class _MapLabel extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRESS BAR STATUS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const _MapLabel(
-      {required this.icon, required this.color, required this.text});
+class _StatusProgressBar extends StatelessWidget {
+  final List<String> steps;
+  final int currentStep;
+  final Color activeColor;
+
+  const _StatusProgressBar({
+    required this.steps,
+    required this.currentStep,
+    required this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List.generate(steps.length * 2 - 1, (i) {
+        // Ganjil = connector line, genap = step dot
+        if (i.isOdd) {
+          final stepIdx = i ~/ 2;
+          final isDone = stepIdx < currentStep;
+          return Expanded(
+            child: Container(
+              height: 2,
+              color: isDone ? activeColor : AppColors.grey200,
+            ),
+          );
+        }
+
+        final stepIdx = i ~/ 2;
+        final isDone = stepIdx <= currentStep;
+        final isCurrent = stepIdx == currentStep;
+
+        return Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: isCurrent ? 12 : 8,
+              height: isCurrent ? 12 : 8,
+              decoration: BoxDecoration(
+                color: isDone ? activeColor : AppColors.grey200,
+                shape: BoxShape.circle,
+                border: isCurrent
+                    ? Border.all(color: activeColor, width: 2)
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              steps[stepIdx],
+              style: TextStyle(
+                fontSize: 8,
+                color: isDone ? activeColor : AppColors.grey400,
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAP WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PorterMarker extends StatelessWidget {
+  final Color color;
+  const _PorterMarker({required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 14),
-          const SizedBox(width: 4),
-          Text(text,
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600)),
+        color: const Color(0xFF1E3C72),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E3C72).withOpacity(0.5),
+            blurRadius: 14,
+            spreadRadius: 3,
+          ),
         ],
       ),
+      child: const Icon(
+        Icons.directions_run_rounded,
+        color: Colors.white,
+        size: 26,
+      ),
+    );
+  }
+}
+
+class _MapPin extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _MapPin({required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Icon(icon, color: color, size: 28),
+      ],
     );
   }
 }
@@ -576,8 +678,7 @@ class _RouteRow extends StatelessWidget {
               Text(label, style: AppTextStyles.caption),
               Text(
                 text,
-                style: AppTextStyles.bodyMd
-                    .copyWith(color: AppColors.grey800),
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey800),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
