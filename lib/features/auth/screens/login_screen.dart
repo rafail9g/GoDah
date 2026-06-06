@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/validators.dart';
@@ -27,8 +26,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _googleLoading = false;
 
-  // Inisialisasi GoogleSignIn sekali saja (google_sign_in ^6.x)
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+    serverClientId:
+        '764544622115-l65mn9in1va4b6evie9kjjsdg78ns96b.apps.googleusercontent.com',
+  );
 
   @override
   void dispose() {
@@ -266,7 +268,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : Icons.visibility_off_outlined,
                                 color: AppColors.grey400,
                               ),
-                              onPressed: () => setState(() => _obscure = !_obscure),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -325,7 +328,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     // Divider
                     Row(
                       children: [
-                        const Expanded(child: Divider(color: AppColors.grey300)),
+                        const Expanded(
+                          child: Divider(color: AppColors.grey300),
+                        ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
@@ -336,7 +341,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                        const Expanded(child: Divider(color: AppColors.grey300)),
+                        const Expanded(
+                          child: Divider(color: AppColors.grey300),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -346,7 +353,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _googleLoading ? null : _loginWithGoogle,
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
-                        side: const BorderSide(color: AppColors.grey300, width: 1.5),
+                        side: const BorderSide(
+                          color: AppColors.grey300,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
