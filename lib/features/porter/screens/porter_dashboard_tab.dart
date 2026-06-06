@@ -1,6 +1,10 @@
 // lib/features/porter/screens/porter_dashboard_tab.dart
-// UPDATED: Porter dapat lihat peta OSM + update GPS posisi + foto barang & bukti kirim
-// Berdasarkan materi: GPS stream update + flutter_map display
+// CHANGES:
+// 1. Accept order: ATOMIC (race-condition safe) - porter pertama yang klik menang
+// 2. Setelah accept: porter langsung lihat map ke lokasi jemput
+// 3. Available orders: TANPA map preview (map muncul hanya setelah terima)
+// 4. Foto WAJIB saat tiba di lokasi jemput (bukan cuma saat selesai)
+// 5. GPS stream update real-time (user bisa lacak porter)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -33,72 +37,46 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   List<Map<String, dynamic>> _myActiveOrders = [];
   bool _loading = true;
 
-  // ── GPS Stream state ──────────────────────────────────────────
+  // Track order mana yang sedang dalam proses accept (prevent double tap)
+  String? _acceptingOrderId;
+
+  // GPS Stream state
   Stream<Position>? _locationStream;
   Position? _currentPosition;
-
-  // ── Realtime channel untuk auto-refresh list order ────────────
-  RealtimeChannel? _ordersChannel;
 
   @override
   void initState() {
     super.initState();
     _load();
     _startGPSStream();
-    _subscribeOrdersRealtime();
   }
 
   @override
   void dispose() {
-    if (_ordersChannel != null) {
-      _supabase.removeChannel(_ordersChannel!);
-    }
     super.dispose();
   }
 
-  // ── Realtime: Auto-refresh list order kalau ada perubahan ────
-  // FIX race condition: kalau porter lain ambil order, list kita langsung update
-  void _subscribeOrdersRealtime() {
-    _ordersChannel = _supabase
-        .channel('orders-dashboard-porter')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'orders',
-          callback: (payload) {
-            // Kalau ada order yang statusnya berubah dari 'menunggu' → refresh list
-            final newStatus = payload.newRecord['status'] as String?;
-            final oldStatus = payload.oldRecord['status'] as String?;
-            if (oldStatus == 'menunggu' && newStatus != 'menunggu') {
-              if (mounted) _load();
-            }
-          },
-        )
-        .subscribe();
-  }
-
-  // ── Slide 9: Start GPS stream untuk update posisi porter ──────
   void _startGPSStream() {
     _locationStream = MapService.instance.getLocationStream(
-      intervalMs: 5000,     // Update tiap 5 detik
-      distanceFilter: 15,   // Min 15 meter baru update (hemat baterai)
+      intervalMs: 5000,
+      distanceFilter: 10,
     );
 
     _locationStream?.listen((position) async {
       if (!mounted) return;
       setState(() => _currentPosition = position);
 
-      // FIX: Update GPS kalau online ATAU kalau ada order aktif yang sedang dijalankan
-      // Penting: porter bisa saja toggle offline tapi order tetap harus dilacak user
+      // Update koordinat porter ke DB agar user bisa tracking real-time
       final auth = context.read<AuthProvider>();
       final porter = auth.currentPorter;
-      final punyaOrderAktif = _myActiveOrders.isNotEmpty;
-
-      if (porter != null && (_isOnline || punyaOrderAktif)) {
-        await _supabase.from('porters').update({
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-        }).eq('id', porter.id);
+      if (porter != null && _isOnline) {
+        await _supabase
+            .from('porters')
+            .update({
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+            })
+            .eq('id', porter.id);
       }
     });
   }
@@ -117,6 +95,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           .single();
       _isOnline = porterData['is_aktif'] as bool? ?? false;
 
+      // Hanya tampilkan order yang BELUM ada porter (porter_id IS NULL)
       final available = await _supabase
           .from('orders')
           .select('*, users(nama, no_hp)')
@@ -130,7 +109,12 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           .from('orders')
           .select('*, users(nama, no_hp)')
           .eq('porter_id', porter.id)
-          .inFilter('status', ['diterima', 'menuju_lokasi', 'dalam_perjalanan', 'sampai_tujuan'])
+          .inFilter('status', [
+            'diterima',
+            'menuju_lokasi',
+            'dalam_perjalanan',
+            'sampai_tujuan',
+          ])
           .order('waktu_pesan', ascending: false);
       _myActiveOrders = List<Map<String, dynamic>>.from(myActive);
     } catch (e) {
@@ -148,7 +132,9 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     if (porter.statusVerifikasi != 'disetujui') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Akun belum terverifikasi. Selesaikan verifikasi dahulu.'),
+          content: Text(
+            'Akun belum terverifikasi. Selesaikan verifikasi dahulu.',
+          ),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -160,12 +146,16 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       final newStatus = !_isOnline;
       await _supabase
           .from('porters')
-          .update({'is_aktif': newStatus}).eq('id', porter.id);
+          .update({'is_aktif': newStatus})
+          .eq('id', porter.id);
       setState(() => _isOnline = newStatus);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -173,93 +163,109 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
   }
 
+  // ── ACCEPT ORDER: ATOMIC — Porter pertama yang klik, dia yang dapat ──────
+  // Tidak perlu foto dulu. Foto wajib saat tiba di lokasi jemput.
   Future<void> _acceptOrder(String orderId) async {
     final auth = context.read<AuthProvider>();
     final porter = auth.currentPorter;
     if (porter == null) return;
 
-    // Ambil foto barang sebelum angkat (WAJIB)
-    final foto = await _ambilFoto(title: 'Foto Barang Sebelum Diangkut');
-    if (foto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Foto barang wajib sebelum menerima order'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    setState(() => _acceptingOrderId = orderId);
 
     try {
-      // ── ATOMIC CHECK: update hanya jika order masih 'menunggu' dan belum ada porter ──
-      // Ini mencegah 2 porter menerima orderan yang sama secara bersamaan (race condition)
-      final updated = await _supabase
+      // STEP 1: Update DENGAN kondisi — hanya jika status masih 'menunggu'
+      // DAN porter_id masih null. Ini mencegah race condition.
+      await _supabase
           .from('orders')
-          .update({
-            'porter_id': porter.id,
-            'status': 'diterima',
-          })
+          .update({'porter_id': porter.id, 'status': 'diterima'})
           .eq('id', orderId)
-          .eq('status', 'menunggu')      // ← hanya update kalau masih menunggu
-          .isFilter('porter_id', null)   // ← hanya update kalau belum ada porter
-          .select('id');                 // ← kembalikan data kalau berhasil
+          .eq('status', 'menunggu')
+          .isFilter('porter_id', null);
 
-      // Kalau array kosong → porter lain sudah lebih dulu ambil order ini
-      if (updated.isEmpty) {
+      // STEP 2: Verifikasi apakah kita yang berhasil mendapatkan order
+      final verify = await _supabase
+          .from('orders')
+          .select('porter_id, status')
+          .eq('id', orderId)
+          .single();
+
+      if (verify['porter_id'] != porter.id) {
+        // Porter lain lebih cepat klik!
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('⚠️ Orderan ini sudah diambil porter lain. Coba yang lain!'),
+              content: Text(
+                '⚡ Order sudah diambil porter lain!\nCoba cari order lain.',
+              ),
               backgroundColor: AppColors.warning,
+              duration: Duration(seconds: 3),
             ),
           );
-          _load(); // Refresh list order
         }
+        _load(); // Refresh list
         return;
       }
 
-      // Upload foto barang ke storage (setelah berhasil klaim order)
-      final fotoUrl = await _uploadFoto(foto, 'barang-order/$orderId-sebelum.jpg');
-
+      // STEP 3: Kita berhasil! Simpan tracking awal
       await _supabase.from('order_tracking').insert({
         'order_id': orderId,
         'status_perjalanan': 'diterima',
-        'catatan': 'Order diterima porter. Foto barang sudah diambil.',
+        'catatan': 'Order diterima porter. Segera menuju lokasi penjemputan.',
         'latitude': _currentPosition?.latitude,
         'longitude': _currentPosition?.longitude,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Order berhasil diterima! Foto barang tersimpan.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '✅ Order berhasil diterima!\nSegera menuju lokasi penjemputan.',
+            ),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.error),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal terima order: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _acceptingOrderId = null);
     }
   }
 
+  // ── UPDATE STATUS dengan routing foto yang benar ──────────────────────
   Future<void> _updateOrderStatus(String orderId, String currentStatus) async {
     final Map<String, String> nextStatus = {
       'diterima': 'menuju_lokasi',
-      'menuju_lokasi': 'dalam_perjalanan',
+      'menuju_lokasi': 'dalam_perjalanan', // ← WAJIB foto barang di jemput
       'dalam_perjalanan': 'sampai_tujuan',
-      'sampai_tujuan': 'selesai',
+      'sampai_tujuan': 'selesai', // ← WAJIB foto bukti pengiriman
     };
 
     final next = nextStatus[currentStatus];
     if (next == null) return;
 
-    // Jika status selesai → wajib foto bukti pengiriman
+    // Foto WAJIB saat tiba di lokasi jemput (sebelum angkat barang)
+    if (next == 'dalam_perjalanan') {
+      await _fotoTibaLokasi(orderId);
+      return;
+    }
+
+    // Foto WAJIB saat selesai mengantarkan barang
     if (next == 'selesai') {
       await _selesaikanDenganFoto(orderId);
       return;
     }
 
+    // Status lain: langsung update tanpa foto
     try {
       await _supabase.from('orders').update({'status': next}).eq('id', orderId);
 
@@ -267,35 +273,156 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'order_id': orderId,
         'status_perjalanan': next,
         'catatan': _statusLabel(next),
-        // Simpan koordinat GPS porter saat update status
         'latitude': _currentPosition?.latitude,
         'longitude': _currentPosition?.longitude,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Status: ${_statusLabel(next)}'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status diperbarui: ${_statusLabel(next)}'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
       _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.error),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
-  // ── Selesaikan order dengan foto bukti pengiriman ─────────────
+  // ── FOTO WAJIB: Tiba di lokasi jemput → foto barang sebelum diangkut ──
+  Future<void> _fotoTibaLokasi(String orderId) async {
+    final foto = await _ambilFoto(title: 'Foto Barang di Lokasi Penjemputan');
+    if (foto == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '📸 Foto barang di lokasi jemput WAJIB sebelum mengangkut!',
+            ),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Konfirmasi
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Tiba di Lokasi Jemput'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(
+                foto,
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Pastikan foto barang jelas sebelum diangkut.\n'
+              'Foto ini sebagai bukti kondisi barang saat dijemput.',
+              style: TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Angkut Barang Sekarang'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final fotoUrl = await _uploadFoto(
+        foto,
+        'foto-jemput/$orderId-${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      await _supabase
+          .from('orders')
+          .update({'status': 'dalam_perjalanan'})
+          .eq('id', orderId);
+
+      await _supabase.from('order_tracking').insert({
+        'order_id': orderId,
+        'status_perjalanan': 'dalam_perjalanan',
+        'catatan':
+            'Porter sudah tiba di lokasi jemput & mengangkut barang. '
+            'Dalam perjalanan menuju tujuan.',
+        'latitude': _currentPosition?.latitude,
+        'longitude': _currentPosition?.longitude,
+      });
+
+      // Simpan foto jemput di tabel bukti_pengiriman dengan flag 'jemput'
+      final auth = context.read<AuthProvider>();
+      await _supabase.from('bukti_pengiriman').upsert({
+        'order_id': orderId,
+        'porter_id': auth.currentPorter?.id,
+        'foto_url': fotoUrl,
+        'keterangan': 'Foto barang saat penjemputan',
+        'jenis_bukti': 'pickup',
+      }, onConflict: 'order_id, jenis_bukti');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📸 Foto tersimpan! Barang siap diantar ke tujuan.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── FOTO WAJIB: Bukti pengiriman selesai ─────────────────────────────
   Future<void> _selesaikanDenganFoto(String orderId) async {
     final foto = await _ambilFoto(title: 'Foto Bukti Barang Sudah Sampai');
     if (foto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Foto bukti pengiriman wajib diisi'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '📸 Foto bukti pengiriman WAJIB untuk menyelesaikan order!',
+            ),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
       return;
     }
 
@@ -303,13 +430,18 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Konfirmasi Selesai'),
+        title: const Text('Konfirmasi Order Selesai'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(foto, height: 150, fit: BoxFit.cover),
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(
+                foto,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -323,29 +455,36 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
           ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Konfirmasi Selesai')),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('Selesaikan Order'),
+          ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     try {
       final auth = context.read<AuthProvider>();
       final porter = auth.currentPorter;
-      final fotoUrl = await _uploadFoto(foto, 'bukti-pengiriman/$orderId.jpg');
+      final fotoUrl = await _uploadFoto(
+        foto,
+        'bukti-pengiriman/$orderId-${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
 
-      // Update order status
-      await _supabase.from('orders').update({
-        'status': 'selesai',
-        'waktu_selesai': DateTime.now().toIso8601String(),
-      }).eq('id', orderId);
+      await _supabase
+          .from('orders')
+          .update({
+            'status': 'selesai',
+            'waktu_selesai': DateTime.now().toIso8601String(),
+          })
+          .eq('id', orderId);
 
-      // Simpan bukti pengiriman
       await _supabase.from('bukti_pengiriman').upsert({
         'order_id': orderId,
         'porter_id': porter?.id,
@@ -353,31 +492,40 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'keterangan': keteranganCtrl.text.trim().isEmpty
             ? 'Barang sudah sampai di tujuan'
             : keteranganCtrl.text.trim(),
-      });
+        'jenis_bukti': 'delivery',
+      }, onConflict: 'order_id, jenis_bukti');
 
       await _supabase.from('order_tracking').insert({
         'order_id': orderId,
         'status_perjalanan': 'selesai',
-        'catatan': 'Order selesai. Barang sudah sampai.',
+        'catatan': 'Order selesai. Barang sudah sampai di tujuan.',
         'latitude': _currentPosition?.latitude,
         'longitude': _currentPosition?.longitude,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🎉 Order selesai! Foto bukti tersimpan.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '🎉 Order selesai! Terima kasih sudah bekerja keras.',
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
       _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.error),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
-  // ── Ambil foto menggunakan kamera ─────────────────────────────
   Future<File?> _ambilFoto({String title = 'Ambil Foto'}) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -389,30 +537,31 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     return File(picked.path);
   }
 
-  // ── Upload foto ke Supabase Storage ──────────────────────────
   Future<String> _uploadFoto(File foto, String path) async {
-    await _supabase.storage.from('dokumen-porter').upload(path, foto,
-        fileOptions: const FileOptions(upsert: true));
+    await _supabase.storage
+        .from('dokumen-porter')
+        .upload(path, foto, fileOptions: const FileOptions(upsert: true));
     return _supabase.storage.from('dokumen-porter').getPublicUrl(path);
   }
 
   String _statusLabel(String s) => switch (s) {
-        'menuju_lokasi' => 'Menuju Lokasi Jemput',
-        'dalam_perjalanan' => 'Dalam Perjalanan ke Tujuan',
-        'sampai_tujuan' => 'Sampai di Tujuan',
-        'selesai' => 'Order Selesai',
-        _ => s,
-      };
+    'diterima' => 'Order Diterima — Menuju Lokasi Jemput',
+    'menuju_lokasi' => 'Menuju Lokasi Jemput',
+    'dalam_perjalanan' => 'Barang Sudah Diambil — Dalam Perjalanan',
+    'sampai_tujuan' => 'Sampai di Tujuan',
+    'selesai' => 'Order Selesai',
+    _ => s,
+  };
 
-  Color _statusColor(String s) => switch (s) {
-        'menunggu' => AppColors.statusMenunggu,
-        'diterima' => AppColors.statusDiterima,
-        'menuju_lokasi' => AppColors.statusMenujuLokasi,
-        'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
-        'sampai_tujuan' => AppColors.statusSampaiTujuan,
-        'selesai' => AppColors.statusSelesai,
-        _ => AppColors.grey400,
-      };
+  Color statusColor(String s) => switch (s) {
+    'menunggu' => AppColors.statusMenunggu,
+    'diterima' => AppColors.statusDiterima,
+    'menuju_lokasi' => AppColors.statusMenujuLokasi,
+    'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
+    'sampai_tujuan' => AppColors.statusSampaiTujuan,
+    'selesai' => AppColors.statusSelesai,
+    _ => AppColors.grey400,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -452,8 +601,9 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                     ? porter!.nama[0].toUpperCase()
                                     : 'P',
                                 style: AppTextStyles.h3.copyWith(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.bold),
+                                  color: AppColors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -464,23 +614,26 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                   Text(
                                     'Halo, ${porter?.nama ?? 'Porter'}! 👋',
                                     style: AppTextStyles.h4.copyWith(
-                                        color: AppColors.white,
-                                        fontWeight: FontWeight.bold),
+                                      color: AppColors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                  // Tampilkan koordinat GPS porter real-time
                                   if (_currentPosition != null)
                                     Text(
-                                      '📍 ${_currentPosition!.latitude.toStringAsFixed(4)}, ${_currentPosition!.longitude.toStringAsFixed(4)}',
+                                      '📍 GPS aktif — posisi terkirim ke user',
                                       style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.white.withOpacity(0.7)),
+                                        color: AppColors.white.withOpacity(0.7),
+                                      ),
                                     ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.notifications_none_rounded,
-                                  color: AppColors.white),
-                              onPressed: () {},
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                color: AppColors.white,
+                              ),
+                              onPressed: _load,
                             ),
                           ],
                         ),
@@ -502,7 +655,8 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           if (_loading)
             const SliverFillRemaining(
               child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary)),
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
             )
           else
             SliverPadding(
@@ -520,28 +674,34 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                     const SizedBox(height: 20),
                   ],
 
-                  // Order Aktif dengan Map Preview
+                  // ── ORDER AKTIF: Tampilkan map real-time GPS tracking ──
                   if (_myActiveOrders.isNotEmpty) ...[
                     _SectionHeader(
-                        title: 'Order Aktif (${_myActiveOrders.length})'),
+                      title: 'Order Aktifmu (${_myActiveOrders.length})',
+                      subtitle:
+                          'Posisi GPS-mu terkirim ke user secara real-time',
+                    ),
                     const SizedBox(height: 10),
-                    ..._myActiveOrders.map((order) => _ActiveOrderCard(
-                          order: order,
-                          currentPosition: _currentPosition,
-                          onUpdateStatus: () => _updateOrderStatus(
-                            order['id'] as String,
-                            order['status'] as String,
-                          ),
-                        )),
+                    ..._myActiveOrders.map(
+                      (order) => _ActiveOrderCard(
+                        order: order,
+                        currentPosition: _currentPosition,
+                        onUpdateStatus: () => _updateOrderStatus(
+                          order['id'] as String,
+                          order['status'] as String,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 20),
                   ],
 
+                  // ── AVAILABLE ORDERS: Tanpa map, cukup detail order ──
                   _SectionHeader(
                     title: _isOnline
                         ? 'Order Tersedia (${_availableOrders.length})'
                         : 'Order Tersedia',
                     subtitle: _isOnline
-                        ? null
+                        ? 'Klik "Terima" — yang duluan klik, yang dapat!'
                         : 'Aktifkan mode online untuk melihat order',
                   ),
                   const SizedBox(height: 10),
@@ -550,10 +710,15 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                   else if (_availableOrders.isEmpty)
                     _EmptyOrdersPlaceholder()
                   else
-                    ..._availableOrders.map((order) => _AvailableOrderCard(
-                          order: order,
-                          onAccept: () => _acceptOrder(order['id'] as String),
-                        )),
+                    ..._availableOrders.map(
+                      (order) => _AvailableOrderCard(
+                        order: order,
+                        isAccepting: _acceptingOrderId == order['id'],
+                        onAccept: _acceptingOrderId == null
+                            ? () => _acceptOrder(order['id'] as String)
+                            : null,
+                      ),
+                    ),
                   const SizedBox(height: 80),
                 ]),
               ),
@@ -564,7 +729,10 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   }
 }
 
-// ── Widget: Order Aktif dengan Map Preview ───────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVE ORDER CARD — dengan map real-time GPS porter
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _ActiveOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
   final Position? currentPosition;
@@ -577,20 +745,28 @@ class _ActiveOrderCard extends StatelessWidget {
   });
 
   String _nextLabel(String s) => switch (s) {
-        'diterima' => 'Menuju Lokasi Jemput',
-        'menuju_lokasi' => 'Sudah di Lokasi Jemput',
-        'dalam_perjalanan' => 'Sampai Tujuan',
-        'sampai_tujuan' => '📸 Selesai + Foto Bukti',
-        _ => '',
-      };
+    'diterima' => '🚶 Mulai Menuju Lokasi Jemput',
+    'menuju_lokasi' => '📸 Tiba di Jemput — Foto Barang',
+    'dalam_perjalanan' => '📍 Konfirmasi Sampai Tujuan',
+    'sampai_tujuan' => '📸 Selesai + Foto Bukti Kirim',
+    _ => '',
+  };
+
+  String _statusInfo(String s) => switch (s) {
+    'diterima' => 'Berangkat ke lokasi penjemputan sekarang',
+    'menuju_lokasi' => 'Sudah di lokasi jemput? Foto barang dulu!',
+    'dalam_perjalanan' => 'Barang sudah diambil, antar ke tujuan',
+    'sampai_tujuan' => 'Sudah sampai? Ambil foto bukti pengiriman',
+    _ => '',
+  };
 
   Color _statusColor(String s) => switch (s) {
-        'diterima' => AppColors.statusDiterima,
-        'menuju_lokasi' => AppColors.statusMenujuLokasi,
-        'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
-        'sampai_tujuan' => AppColors.statusSampaiTujuan,
-        _ => AppColors.grey400,
-      };
+    'diterima' => AppColors.statusDiterima,
+    'menuju_lokasi' => AppColors.statusMenujuLokasi,
+    'dalam_perjalanan' => AppColors.statusDalamPerjalanan,
+    'sampai_tujuan' => AppColors.statusSampaiTujuan,
+    _ => AppColors.grey400,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -610,26 +786,31 @@ class _ActiveOrderCard extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: color.withOpacity(0.1),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
         children: [
-          // ── Map mini untuk order aktif ──────────────────────
+          // ── MAP real-time: Porter lihat posisinya sendiri + rute ──────
           if (latJemput != 0 && lngJemput != 0)
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               child: SizedBox(
-                height: 180,
+                height: 200,
                 child: FlutterMap(
                   options: MapOptions(
                     initialCenter: currentPosition != null
-                        ? LatLng(currentPosition!.latitude, currentPosition!.longitude)
+                        ? LatLng(
+                            currentPosition!.latitude,
+                            currentPosition!.longitude,
+                          )
                         : LatLng(latJemput, lngJemput),
-                    initialZoom: 14.0,
+                    initialZoom: 14.5,
                   ),
                   children: [
                     TileLayer(
@@ -637,36 +818,94 @@ class _ActiveOrderCard extends StatelessWidget {
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.go_dah',
                     ),
+                    // Garis rute
+                    if (latTujuan != 0)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [
+                              LatLng(latJemput, lngJemput),
+                              LatLng(latTujuan, lngTujuan),
+                            ],
+                            strokeWidth: 3,
+                            color: color.withOpacity(0.6),
+                            isDotted: true,
+                          ),
+                          if (currentPosition != null)
+                            Polyline(
+                              points: [
+                                LatLng(
+                                  currentPosition!.latitude,
+                                  currentPosition!.longitude,
+                                ),
+                                // Garis dari posisi porter ke tujuan relevan
+                                status == 'dalam_perjalanan' ||
+                                        status == 'sampai_tujuan'
+                                    ? LatLng(latTujuan, lngTujuan)
+                                    : LatLng(latJemput, lngJemput),
+                              ],
+                              strokeWidth: 3.5,
+                              color: const Color(0xFF1E3C72),
+                            ),
+                        ],
+                      ),
                     MarkerLayer(
                       markers: [
+                        // Lokasi jemput (hijau)
                         Marker(
                           point: LatLng(latJemput, lngJemput),
                           width: 36,
                           height: 36,
-                          child: const Icon(Icons.radio_button_checked_rounded,
-                              color: AppColors.success, size: 30),
+                          child: const Icon(
+                            Icons.radio_button_checked_rounded,
+                            color: AppColors.success,
+                            size: 30,
+                          ),
                         ),
-                        Marker(
-                          point: LatLng(latTujuan, lngTujuan),
-                          width: 36,
-                          height: 36,
-                          child: const Icon(Icons.location_on_rounded,
-                              color: AppColors.error, size: 30),
-                        ),
+                        // Lokasi tujuan (merah)
+                        if (latTujuan != 0)
+                          Marker(
+                            point: LatLng(latTujuan, lngTujuan),
+                            width: 36,
+                            height: 36,
+                            child: const Icon(
+                              Icons.location_on_rounded,
+                              color: AppColors.error,
+                              size: 30,
+                            ),
+                          ),
+                        // Posisi porter saat ini (biru bergerak)
                         if (currentPosition != null)
                           Marker(
-                            point: LatLng(currentPosition!.latitude,
-                                currentPosition!.longitude),
-                            width: 44,
-                            height: 44,
+                            point: LatLng(
+                              currentPosition!.latitude,
+                              currentPosition!.longitude,
+                            ),
+                            width: 48,
+                            height: 48,
                             child: Container(
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1E3C72),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF1E3C72,
+                                    ).withOpacity(0.4),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
                               ),
-                              child: const Icon(Icons.directions_run_rounded,
-                                  color: Colors.white, size: 22),
+                              child: const Icon(
+                                Icons.directions_run_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                             ),
                           ),
                       ],
@@ -681,39 +920,94 @@ class _ActiveOrderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Status badge + nama user
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: color.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         status.replaceAll('_', ' ').toUpperCase(),
-                        style: AppTextStyles.labelSm
-                            .copyWith(color: color, fontWeight: FontWeight.bold),
+                        style: AppTextStyles.labelSm.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const Spacer(),
-                    Text(user['nama'] as String? ?? 'User',
-                        style: AppTextStyles.labelMd
-                            .copyWith(fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.person_outline_rounded,
+                          size: 14,
+                          color: AppColors.grey500,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          user['nama'] as String? ?? 'User',
+                          style: AppTextStyles.labelMd.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
+
+                // Info hint untuk porter
+                if (_statusInfo(status).isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 14,
+                          color: color,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _statusInfo(status),
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: color,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 12),
                 _LokasiItem(
-                    icon: Icons.radio_button_on_rounded,
-                    color: AppColors.success,
-                    label: 'Jemput',
-                    text: order['lokasi_jemput'] as String? ?? '-'),
+                  icon: Icons.radio_button_on_rounded,
+                  color: AppColors.success,
+                  label: 'Lokasi Jemput',
+                  text: order['lokasi_jemput'] as String? ?? '-',
+                ),
                 const SizedBox(height: 6),
                 _LokasiItem(
-                    icon: Icons.location_on_rounded,
-                    color: AppColors.error,
-                    label: 'Tujuan',
-                    text: order['lokasi_tujuan'] as String? ?? '-'),
+                  icon: Icons.location_on_rounded,
+                  color: AppColors.error,
+                  label: 'Tujuan',
+                  text: order['lokasi_tujuan'] as String? ?? '-',
+                ),
                 const SizedBox(height: 16),
 
                 if (_nextLabel(status).isNotEmpty)
@@ -723,15 +1017,19 @@ class _ActiveOrderCard extends StatelessWidget {
                       onPressed: onUpdateStatus,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: color,
-                        minimumSize: const Size.fromHeight(48),
+                        minimumSize: const Size.fromHeight(50),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         elevation: 3,
                       ),
                       child: Text(
                         _nextLabel(status),
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.white),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -744,7 +1042,223 @@ class _ActiveOrderCard extends StatelessWidget {
   }
 }
 
-// ── Reuse widget dari dashboard lama ────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// AVAILABLE ORDER CARD — TANPA map, hanya info order. Map muncul setelah terima.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AvailableOrderCard extends StatelessWidget {
+  final Map<String, dynamic> order;
+  final bool isAccepting;
+  final VoidCallback? onAccept;
+
+  const _AvailableOrderCard({
+    required this.order,
+    required this.isAccepting,
+    required this.onAccept,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final user = order['users'] as Map<String, dynamic>? ?? {};
+    final biaya = (order['total_biaya'] as num? ?? 0).toInt();
+    final layanan = order['jenis_layanan'] as String? ?? 'instant';
+    final jenisBrg = order['jenis_barang'] as String? ?? '-';
+    final berat = order['estimasi_berat'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: layanan + harga
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: layanan == 'instant'
+                        ? const Color(0xFFF2994A).withOpacity(0.12)
+                        : const Color(0xFF2D9CDB).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    layanan == 'instant' ? '⚡ Instan' : '📅 Terjadwal',
+                    style: AppTextStyles.labelSm.copyWith(
+                      color: layanan == 'instant'
+                          ? const Color(0xFFF2994A)
+                          : const Color(0xFF2D9CDB),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Rp ${_rupiahFormat(biaya)}',
+                  style: AppTextStyles.priceMd.copyWith(
+                    color: const Color(0xFF1E3C72),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Rute: jemput → tujuan
+            _LokasiItem(
+              icon: Icons.radio_button_checked_rounded,
+              color: AppColors.success,
+              label: 'Lokasi Jemput',
+              text: order['lokasi_jemput'] as String? ?? '-',
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 7.5),
+              child: Container(width: 2, height: 16, color: AppColors.grey200),
+            ),
+            _LokasiItem(
+              icon: Icons.location_on_rounded,
+              color: AppColors.error,
+              label: 'Tujuan',
+              text: order['lokasi_tujuan'] as String? ?? '-',
+            ),
+            const Divider(height: 20),
+
+            // Chips: jenis barang, berat, user
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _InfoChip(icon: Icons.inventory_2_outlined, text: jenisBrg),
+                if (berat != null)
+                  _InfoChip(icon: Icons.scale_rounded, text: '${berat} kg'),
+                _InfoChip(
+                  icon: Icons.person_outline_rounded,
+                  text: user['nama'] as String? ?? 'User',
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Info: peta tersedia setelah terima
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.map_outlined,
+                    size: 13,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Peta & rute detail tersedia setelah menerima order',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primary700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Tombol terima — PERTAMA yang klik yang menang!
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isAccepting ? null : onAccept,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E3C72),
+                  disabledBackgroundColor: AppColors.grey300,
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: isAccepting ? 0 : 3,
+                ),
+                child: isAccepting
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Memproses...',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 18,
+                            color: AppColors.white,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Terima Pesanan',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.white,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _rupiahFormat(int n) {
+    final str = n.toString();
+    final result = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) result.write('.');
+      result.write(str[i]);
+    }
+    return result.toString();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _OnlineToggleCard extends StatelessWidget {
   final bool isOnline;
@@ -779,9 +1293,10 @@ class _OnlineToggleCard extends StatelessWidget {
               boxShadow: isOnline
                   ? [
                       BoxShadow(
-                          color: const Color(0xFF38EF7D).withOpacity(0.6),
-                          blurRadius: 8,
-                          spreadRadius: 2)
+                        color: const Color(0xFF38EF7D).withOpacity(0.6),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
                     ]
                   : [],
             ),
@@ -789,19 +1304,25 @@ class _OnlineToggleCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              isOnline ? 'ONLINE — Siap Terima Order' : 'OFFLINE — Sedang Istirahat',
+              isOnline
+                  ? 'ONLINE — Siap Terima Order'
+                  : 'OFFLINE — Sedang Istirahat',
               style: AppTextStyles.labelLg.copyWith(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12),
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           if (loading)
             const SizedBox(
-                width: 36,
-                height: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.white))
+              width: 36,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.white,
+              ),
+            )
           else
             GestureDetector(
               onTap: onToggle,
@@ -815,13 +1336,17 @@ class _OnlineToggleCard extends StatelessWidget {
                 ),
                 child: AnimatedAlign(
                   duration: const Duration(milliseconds: 200),
-                  alignment: isOnline ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isOnline
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.all(3),
                     width: 22,
                     height: 22,
                     decoration: const BoxDecoration(
-                        color: AppColors.white, shape: BoxShape.circle),
+                      color: AppColors.white,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
               ),
@@ -841,22 +1366,25 @@ class _StatsRow extends StatelessWidget {
     return Row(
       children: [
         _StatCard(
-            icon: Icons.check_circle_rounded,
-            label: 'Order Selesai',
-            value: '$totalSelesai',
-            gradientColors: const [Color(0xFF11998E), Color(0xFF38EF7D)]),
+          icon: Icons.check_circle_rounded,
+          label: 'Order Selesai',
+          value: '$totalSelesai',
+          gradientColors: const [Color(0xFF11998E), Color(0xFF38EF7D)],
+        ),
         const SizedBox(width: 10),
         _StatCard(
-            icon: Icons.star_rounded,
-            label: 'Rating Anda',
-            value: '5.0',
-            gradientColors: const [Color(0xFFF2C94C), Color(0xFFF2994A)]),
+          icon: Icons.star_rounded,
+          label: 'Rating',
+          value: '5.0',
+          gradientColors: const [Color(0xFFF2C94C), Color(0xFFF2994A)],
+        ),
         const SizedBox(width: 10),
         _StatCard(
-            icon: Icons.local_shipping_rounded,
-            label: 'Hari Ini',
-            value: '0',
-            gradientColors: const [Color(0xFF1E3C72), Color(0xFF2A5298)]),
+          icon: Icons.local_shipping_rounded,
+          label: 'Hari Ini',
+          value: '0',
+          gradientColors: const [Color(0xFF1E3C72), Color(0xFF2A5298)],
+        ),
       ],
     );
   }
@@ -882,31 +1410,40 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-              colors: gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: gradientColors[0].withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4))
+              color: gradientColors[0].withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
           children: [
             Icon(icon, color: Colors.white, size: 20),
             const SizedBox(height: 6),
-            Text(value,
-                style: AppTextStyles.h3
-                    .copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(
+              value,
+              style: AppTextStyles.h3.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(label,
-                style: AppTextStyles.caption.copyWith(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500),
-                textAlign: TextAlign.center),
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -936,19 +1473,17 @@ class _VerifBanner extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-                isPending
-                    ? Icons.hourglass_top_rounded
-                    : Icons.cancel_rounded,
-                color: color,
-                size: 24),
+              isPending ? Icons.hourglass_top_rounded : Icons.cancel_rounded,
+              color: color,
+              size: 24,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 isPending
                     ? 'Menunggu verifikasi admin (1×24 jam)'
                     : 'Verifikasi ditolak. Tap untuk upload ulang.',
-                style:
-                    AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
               ),
             ),
           ],
@@ -969,200 +1504,22 @@ class _SectionHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: AppTextStyles.h3.copyWith(
-                color: AppColors.primary, fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: AppTextStyles.h3.copyWith(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         if (subtitle != null) ...[
           const SizedBox(height: 2),
-          Text(subtitle!,
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.grey500)),
+          Text(
+            subtitle!,
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.grey500),
+          ),
         ],
       ],
     );
-  }
-}
-
-class _AvailableOrderCard extends StatelessWidget {
-  final Map<String, dynamic> order;
-  final VoidCallback onAccept;
-
-  const _AvailableOrderCard({required this.order, required this.onAccept});
-
-  @override
-  Widget build(BuildContext context) {
-    final user = order['users'] as Map<String, dynamic>? ?? {};
-    final biaya = (order['total_biaya'] as num? ?? 0).toInt();
-    final layanan = order['jenis_layanan'] as String? ?? 'instant';
-    final latJemput = (order['lat_jemput'] as num?)?.toDouble() ?? 0;
-    final lngJemput = (order['lng_jemput'] as num?)?.toDouble() ?? 0;
-    final latTujuan = (order['lat_tujuan'] as num?)?.toDouble() ?? 0;
-    final lngTujuan = (order['lng_tujuan'] as num?)?.toDouble() ?? 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        children: [
-          // Mini map preview order
-          if (latJemput != 0)
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
-              child: SizedBox(
-                height: 140,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(latJemput, lngJemput),
-                    initialZoom: 13.0,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.none, // Read-only map
-                    ),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.go_dah',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: LatLng(latJemput, lngJemput),
-                          width: 32,
-                          height: 32,
-                          child: const Icon(Icons.radio_button_checked_rounded,
-                              color: AppColors.success, size: 28),
-                        ),
-                        if (latTujuan != 0)
-                          Marker(
-                            point: LatLng(latTujuan, lngTujuan),
-                            width: 32,
-                            height: 32,
-                            child: const Icon(Icons.location_on_rounded,
-                                color: AppColors.error, size: 28),
-                          ),
-                      ],
-                    ),
-                    if (latTujuan != 0)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: [
-                              LatLng(latJemput, lngJemput),
-                              LatLng(latTujuan, lngTujuan),
-                            ],
-                            strokeWidth: 3,
-                            color: const Color(0xFF1E3C72),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: layanan == 'instant'
-                            ? const Color(0xFFF2994A).withOpacity(0.12)
-                            : const Color(0xFF2D9CDB).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        layanan == 'instant' ? '⚡ Instan' : '📅 Terjadwal',
-                        style: AppTextStyles.labelSm.copyWith(
-                          color: layanan == 'instant'
-                              ? const Color(0xFFF2994A)
-                              : const Color(0xFF2D9CDB),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Rp ${_rupiahFormat(biaya)}',
-                      style: AppTextStyles.priceMd.copyWith(
-                          color: const Color(0xFF1E3C72),
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _LokasiItem(
-                    icon: Icons.radio_button_checked_rounded,
-                    color: AppColors.success,
-                    label: 'Jemput',
-                    text: order['lokasi_jemput'] as String? ?? '-'),
-                const SizedBox(height: 4),
-                _LokasiItem(
-                    icon: Icons.location_on_rounded,
-                    color: AppColors.error,
-                    label: 'Tujuan',
-                    text: order['lokasi_tujuan'] as String? ?? '-'),
-                const Divider(height: 20),
-                Row(
-                  children: [
-                    _InfoChip(
-                        icon: Icons.inventory_2_outlined,
-                        text: order['jenis_barang'] as String? ?? '-'),
-                    const SizedBox(width: 10),
-                    _InfoChip(
-                        icon: Icons.person_outline_rounded,
-                        text: user['nama'] as String? ?? 'User'),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: onAccept,
-                    icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                    label: const Text('Terima + Foto Barang',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E3C72),
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: 2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _rupiahFormat(int n) {
-    final str = n.toString();
-    final result = StringBuffer();
-    for (int i = 0; i < str.length; i++) {
-      if (i > 0 && (str.length - i) % 3 == 0) result.write('.');
-      result.write(str[i]);
-    }
-    return result.toString();
   }
 }
 
@@ -1172,11 +1529,12 @@ class _LokasiItem extends StatelessWidget {
   final String label;
   final String text;
 
-  const _LokasiItem(
-      {required this.icon,
-      required this.color,
-      required this.label,
-      required this.text});
+  const _LokasiItem({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1190,11 +1548,12 @@ class _LokasiItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: AppTextStyles.caption),
-              Text(text,
-                  style:
-                      AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
+              Text(
+                text,
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -1210,25 +1569,22 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: AppColors.grey100,
-          borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: AppColors.grey500),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(text,
-                  style: AppTextStyles.labelSm.copyWith(color: AppColors.grey700),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(AppDimens.radiusRound),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.grey500),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: AppTextStyles.labelSm.copyWith(color: AppColors.grey700),
+          ),
+        ],
       ),
     );
   }
@@ -1240,18 +1596,27 @@ class _OfflinePlaceholder extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+      ),
       child: Column(
         children: [
-          Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.grey300),
+          const Icon(
+            Icons.wifi_off_rounded,
+            size: 48,
+            color: AppColors.grey300,
+          ),
           const SizedBox(height: 12),
-          Text('Kamu sedang Offline',
-              style: AppTextStyles.h4.copyWith(color: AppColors.grey500)),
+          Text(
+            'Kamu sedang Offline',
+            style: AppTextStyles.h4.copyWith(color: AppColors.grey500),
+          ),
           const SizedBox(height: 4),
-          Text('Aktifkan mode online untuk menerima pesanan.',
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey400),
-              textAlign: TextAlign.center),
+          Text(
+            'Aktifkan mode online untuk menerima pesanan.',
+            style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey400),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -1264,18 +1629,23 @@ class _EmptyOrdersPlaceholder extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+      ),
       child: Column(
         children: [
-          Icon(Icons.inbox_rounded, size: 48, color: AppColors.grey300),
+          const Icon(Icons.inbox_rounded, size: 48, color: AppColors.grey300),
           const SizedBox(height: 12),
-          Text('Belum Ada Order',
-              style: AppTextStyles.h4.copyWith(color: AppColors.grey500)),
+          Text(
+            'Belum Ada Order Masuk',
+            style: AppTextStyles.h4.copyWith(color: AppColors.grey500),
+          ),
           const SizedBox(height: 4),
-          Text('Tunggu sebentar ya!',
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey400),
-              textAlign: TextAlign.center),
+          Text(
+            'Tunggu sebentar ya, order akan muncul otomatis!',
+            style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey400),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
