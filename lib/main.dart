@@ -25,25 +25,81 @@ void main() async {
   runApp(const GoDahApp());
 }
 
-class GoDahApp extends StatelessWidget {
+class GoDahApp extends StatefulWidget {
   const GoDahApp({super.key});
 
   @override
+  State<GoDahApp> createState() => _GoDahAppState();
+}
+
+class _GoDahAppState extends State<GoDahApp> {
+  late final AuthProvider _auth;
+  late final _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = AuthProvider()..init();
+    _router = AppRouter.router(_auth);
+  }
+
+  @override
+  void dispose() {
+    _auth.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
-      ],
-      child: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
-          return MaterialApp.router(
-            title: AppStrings.appName,
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light,
-            routerConfig: AppRouter.router(auth),
-          );
-        },
+    return ChangeNotifierProvider.value(
+      value: _auth,
+      child: _AppLifecycleSync(
+        auth: _auth,
+        child: MaterialApp.router(
+          title: AppStrings.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          routerConfig: _router,
+        ),
       ),
     );
   }
+}
+
+class _AppLifecycleSync extends StatefulWidget {
+  final AuthProvider auth;
+  final Widget child;
+
+  const _AppLifecycleSync({
+    required this.auth,
+    required this.child,
+  });
+
+  @override
+  State<_AppLifecycleSync> createState() => _AppLifecycleSyncState();
+}
+
+class _AppLifecycleSyncState extends State<_AppLifecycleSync>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.auth.refreshCurrentSession();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

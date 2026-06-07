@@ -1,16 +1,186 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
 
 class UserProfileTab extends StatelessWidget {
   const UserProfileTab({super.key});
 
-  @override
+  static const _callCenterPhone = '081234567890';
+
+  Future<void> _showEditProfileDialog(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    final namaCtrl = TextEditingController(text: user.nama);
+    final hpCtrl = TextEditingController(text: user.noHp);
+    final alamatCtrl = TextEditingController(text: user.alamat ?? '');
+
+    final payload = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Profil'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: namaCtrl,
+                decoration: const InputDecoration(labelText: 'Nama'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: hpCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'No. HP'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: alamatCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Alamat Kos/Gedung',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (namaCtrl.text.trim().isEmpty || hpCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Nama dan nomor HP wajib diisi.'),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(ctx, {
+                'nama': namaCtrl.text,
+                'noHp': hpCtrl.text,
+                'alamat': alamatCtrl.text,
+              });
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    namaCtrl.dispose();
+    hpCtrl.dispose();
+    alamatCtrl.dispose();
+
+    if (payload == null || !context.mounted) return;
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!context.mounted) return;
+
+    final result = await auth.updateUserProfile(
+      nama: payload['nama'] ?? '',
+      noHp: payload['noHp'] ?? '',
+      alamat: payload['alamat'],
+    );
+    if (!context.mounted) return;
+
+    result.when(
+      success: (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil berhasil diperbarui.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      },
+      failure: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final email = context.read<AuthProvider>().currentUser?.email;
+    if (email == null) return;
+
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ganti Password'),
+        content: Text(
+          'Link reset password akan dikirim ke $email.',
+          style: AppTextStyles.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (e) {
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal mengirim reset password: $e'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+            },
+            child: const Text('Kirim Link'),
+          ),
+        ],
+      ),
+    );
+
+    if (sent == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link reset password sudah dikirim.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  void _showInfoDialog(BuildContext context, String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message, style: AppTextStyles.bodyMd),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -168,25 +338,33 @@ class UserProfileTab extends StatelessWidget {
                     _MenuRow(
                       icon: Icons.edit_rounded,
                       label: 'Edit Profil',
-                      onTap: () {},
+                      onTap: () => _showEditProfileDialog(context),
                     ),
                     const Divider(height: 1),
                     _MenuRow(
                       icon: Icons.lock_rounded,
                       label: 'Ganti Password',
-                      onTap: () {},
+                      onTap: () => _showChangePasswordDialog(context),
                     ),
                     const Divider(height: 1),
                     _MenuRow(
-                      icon: Icons.help_outline_rounded,
-                      label: 'Bantuan & FAQ',
-                      onTap: () {},
+                      icon: Icons.support_agent_rounded,
+                      label: 'Call Center Barang Hilang',
+                      onTap: () => CallService.callPhone(
+                        context,
+                        _callCenterPhone,
+                        targetLabel: 'call center',
+                      ),
                     ),
                     const Divider(height: 1),
                     _MenuRow(
                       icon: Icons.info_outline_rounded,
                       label: 'Tentang Go-Dah',
-                      onTap: () {},
+                      onTap: () => _showInfoDialog(
+                        context,
+                        'Tentang Go-Dah',
+                        'Go-Dah membantu mahasiswa memindahkan dan mengantar barang di area kampus. Untuk barang hilang atau kendala pengiriman, hubungi call center.',
+                      ),
                     ),
                     const Divider(height: 1),
                     _MenuRow(

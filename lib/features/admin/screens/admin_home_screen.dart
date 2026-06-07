@@ -24,7 +24,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -41,14 +41,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Scaffold(
       backgroundColor: AppColors.grey100,
       appBar: AppBar(
-        backgroundColor: AppColors.grey900,
+        backgroundColor: AppColors.primary900,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Admin Panel', style: TextStyle(fontSize: 16)),
+            const Text('Admin Go-Dah', style: TextStyle(fontSize: 16)),
             Text(
-              admin?.nama ?? '',
-              style: const TextStyle(fontSize: 12, color: AppColors.grey400),
+              admin?.nama?.isNotEmpty == true ? admin!.nama : 'Dashboard',
+              style: const TextStyle(fontSize: 12, color: AppColors.primary100),
             ),
           ],
         ),
@@ -64,22 +65,515 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           indicatorColor: AppColors.accent,
+          indicatorWeight: 3,
           labelColor: AppColors.white,
-          unselectedLabelColor: AppColors.grey500,
+          unselectedLabelColor: AppColors.primary100,
+          labelStyle: AppTextStyles.labelMd.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.white,
+          ),
           tabs: const [
-            Tab(text: 'Menunggu'),
-            Tab(text: 'Disetujui'),
-            Tab(text: 'Ditolak'),
+            Tab(text: 'Verifikasi'),
+            Tab(text: 'User'),
+            Tab(text: 'Porter'),
+            Tab(text: 'Order'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: const [
-          _VerifikasiList(status: 'menunggu'),
-          _VerifikasiList(status: 'disetujui'),
-          _VerifikasiList(status: 'ditolak'),
+          _VerifikasiAdminTab(),
+          _UsersCrudTab(),
+          _PortersCrudTab(),
+          _OrdersCrudTab(),
+        ],
+      ),
+    );
+  }
+}
+
+class _VerifikasiAdminTab extends StatelessWidget {
+  const _VerifikasiAdminTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          Material(
+            color: AppColors.white,
+            child: TabBar(
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.grey500,
+              indicatorColor: AppColors.primary,
+              labelStyle: AppTextStyles.labelMd.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              tabs: const [
+                Tab(text: 'Menunggu'),
+                Tab(text: 'Disetujui'),
+                Tab(text: 'Ditolak'),
+              ],
+            ),
+          ),
+          const Expanded(
+            child: TabBarView(
+              children: [
+                _VerifikasiList(status: 'menunggu'),
+                _VerifikasiList(status: 'disetujui'),
+                _VerifikasiList(status: 'ditolak'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsersCrudTab extends StatelessWidget {
+  const _UsersCrudTab();
+
+  @override
+  Widget build(BuildContext context) => const _SimpleAdminTable(
+        title: 'Data User',
+        table: 'users',
+        select: '*',
+        editableFields: ['nama', 'email', 'no_hp', 'alamat', 'status'],
+        requiredFields: ['nama', 'email', 'no_hp'],
+        insertDefaults: {'password_hash': 'admin_created'},
+        titleField: 'nama',
+        subtitleField: 'email',
+        lineFields: ['no_hp', 'alamat', 'status'],
+      );
+}
+
+class _PortersCrudTab extends StatelessWidget {
+  const _PortersCrudTab();
+
+  @override
+  Widget build(BuildContext context) => const _SimpleAdminTable(
+        title: 'Data Porter',
+        table: 'porters',
+        select: '*',
+        editableFields: [
+          'nama',
+          'email',
+          'no_hp',
+          'status_verifikasi',
+          'is_aktif',
+        ],
+        requiredFields: ['nama', 'email', 'no_hp'],
+        titleField: 'nama',
+        subtitleField: 'email',
+        lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
+      );
+}
+
+class _OrdersCrudTab extends StatelessWidget {
+  const _OrdersCrudTab();
+
+  @override
+  Widget build(BuildContext context) => const _SimpleAdminTable(
+        title: 'Data Order',
+        table: 'orders',
+        select: '*, users(nama), porters(nama)',
+        editableFields: ['status', 'catatan'],
+        titleField: 'jenis_barang',
+        subtitleField: 'status',
+        lineFields: [
+          'users.nama',
+          'porters.nama',
+          'lokasi_jemput',
+          'lokasi_tujuan',
+          'total_biaya',
+        ],
+        allowAdd: false,
+      );
+}
+
+class _SimpleAdminTable extends StatefulWidget {
+  final String title;
+  final String table;
+  final String select;
+  final List<String> editableFields;
+  final List<String> requiredFields;
+  final Map<String, dynamic> insertDefaults;
+  final String titleField;
+  final String subtitleField;
+  final List<String> lineFields;
+  final bool allowAdd;
+
+  const _SimpleAdminTable({
+    required this.title,
+    required this.table,
+    required this.select,
+    required this.editableFields,
+    this.requiredFields = const [],
+    this.insertDefaults = const {},
+    required this.titleField,
+    required this.subtitleField,
+    required this.lineFields,
+    this.allowAdd = true,
+  });
+
+  @override
+  State<_SimpleAdminTable> createState() => _SimpleAdminTableState();
+}
+
+class _SimpleAdminTableState extends State<_SimpleAdminTable> {
+  List<Map<String, dynamic>> _data = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await _supabase
+          .from(widget.table)
+          .select(widget.select)
+          .order(widget.table == 'orders' ? 'waktu_pesan' : 'created_at',
+              ascending: false);
+      if (mounted) setState(() => _data = List<Map<String, dynamic>>.from(res));
+    } catch (e) {
+      _showSnack('Gagal memuat ${widget.title}: $e', AppColors.error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _upsert([Map<String, dynamic>? item]) async {
+    final controllers = {
+      for (final field in widget.editableFields)
+        field: TextEditingController(text: '${item?[field] ?? ''}'),
+    };
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          item == null ? 'Tambah ${widget.title}' : 'Edit ${widget.title}',
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: widget.editableFields
+                .map(
+                  (field) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: TextField(
+                      controller: controllers[field],
+                      decoration: InputDecoration(labelText: _fieldLabel(field)),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              for (final field in widget.requiredFields) {
+                if ((controllers[field]?.text.trim() ?? '').isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('${_fieldLabel(field)} wajib diisi.'),
+                      backgroundColor: AppColors.warning,
+                    ),
+                  );
+                  return;
+                }
+              }
+              Navigator.pop(ctx, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true) {
+      for (final ctrl in controllers.values) {
+        ctrl.dispose();
+      }
+      return;
+    }
+
+    try {
+      final payload = <String, dynamic>{...widget.insertDefaults};
+      for (final entry in controllers.entries) {
+        payload[entry.key] = _parseFieldValue(entry.key, entry.value.text);
+      }
+
+      if (item == null) {
+        await _supabase.from(widget.table).insert(payload);
+      } else {
+        await _supabase.from(widget.table).update(payload).eq('id', item['id']);
+      }
+
+      _showSnack('${widget.title} tersimpan.', AppColors.success);
+      _load();
+    } catch (e) {
+      _showSnack('Gagal menyimpan ${widget.title}: $e', AppColors.error);
+    } finally {
+      for (final ctrl in controllers.values) {
+        ctrl.dispose();
+      }
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Data?'),
+        content: Text('Yakin ingin menghapus ${_value(item, widget.titleField)}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+    try {
+      await _supabase.from(widget.table).delete().eq('id', item['id']);
+      _showSnack('${widget.title} dihapus.', AppColors.success);
+      _load();
+    } catch (e) {
+      _showSnack('Gagal menghapus ${widget.title}: $e', AppColors.error);
+    }
+  }
+
+  dynamic _parseFieldValue(String field, String value) {
+    final trimmed = value.trim();
+    if (field == 'is_aktif') return trimmed.toLowerCase() == 'true' || trimmed == '1';
+    if (trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  String _value(Map<String, dynamic> item, String field) {
+    final parts = field.split('.');
+    dynamic value = item;
+    for (final part in parts) {
+      if (value is Map<String, dynamic>) {
+        value = value[part];
+      } else {
+        return '-';
+      }
+    }
+    if (value == null) return '-';
+    if (value is bool) return value ? 'Ya' : 'Tidak';
+    return '$value';
+  }
+
+  String _fieldLabel(String field) => switch (field) {
+        'nama' => 'Nama',
+        'email' => 'Email',
+        'no_hp' => 'No. HP',
+        'alamat' => 'Alamat',
+        'status' => 'Status',
+        'status_verifikasi' => 'Status Verifikasi',
+        'is_aktif' => 'Aktif (true/false)',
+        'catatan' => 'Catatan',
+        'users.nama' => 'User',
+        'porters.nama' => 'Porter',
+        'lokasi_jemput' => 'Jemput',
+        'lokasi_tujuan' => 'Tujuan',
+        'total_biaya' => 'Biaya',
+        _ => field,
+      };
+
+  void _showSnack(String message, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.grey100,
+      floatingActionButton: widget.allowAdd
+          ? FloatingActionButton.extended(
+              onPressed: () => _upsert(),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Tambah'),
+              backgroundColor: AppColors.primary,
+            )
+          : null,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.primary,
+        child: _data.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 140),
+                  const Icon(
+                    Icons.table_rows_rounded,
+                    size: 56,
+                    color: AppColors.grey300,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${widget.title} masih kosong',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
+                  ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                itemCount: _data.length + 1,
+                itemBuilder: (_, i) {
+                  if (i == 0) {
+                    return _AdminListHeader(
+                      title: widget.title,
+                      count: _data.length,
+                    );
+                  }
+                  final item = _data[i - 1];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    elevation: 0,
+                    color: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.grey200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _value(item, widget.titleField),
+                                      style: AppTextStyles.h4.copyWith(
+                                        color: AppColors.grey900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _value(item, widget.subtitleField),
+                                      style: AppTextStyles.bodySm.copyWith(
+                                        color: AppColors.grey500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _upsert(item),
+                                icon: const Icon(Icons.edit_outlined),
+                                color: AppColors.primary,
+                                tooltip: 'Edit',
+                              ),
+                              IconButton(
+                                onPressed: () => _delete(item),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                color: AppColors.error,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 18),
+                          ...widget.lineFields.map(
+                            (field) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                '${_fieldLabel(field)}: ${_value(item, field)}',
+                                style: AppTextStyles.bodySm.copyWith(
+                                  color: AppColors.grey700,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+class _AdminListHeader extends StatelessWidget {
+  final String title;
+  final int count;
+
+  const _AdminListHeader({
+    required this.title,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: AppTextStyles.h3.copyWith(color: AppColors.grey900),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.primary50,
+              borderRadius: BorderRadius.circular(AppDimens.radiusRound),
+            ),
+            child: Text(
+              '$count data',
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -387,8 +881,11 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: AppColors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.grey200),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

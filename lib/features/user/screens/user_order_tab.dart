@@ -299,12 +299,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
                   style: AppTextStyles.h2.copyWith(
                       color: AppColors.white, fontWeight: FontWeight.bold),
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded,
-                      color: AppColors.white),
-                  onPressed: () {},
-                ),
               ],
             ),
           ),

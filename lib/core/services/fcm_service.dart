@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
-  debugPrint('📩 Background FCM: ${message.notification?.title}');
+  debugPrint('Background FCM: ${message.notification?.title}');
 }
 
 class FcmService {
@@ -45,9 +45,7 @@ class FcmService {
       sound: true,
       provisional: false,
     );
-    debugPrint(
-      ' Notification permission: ${settings.authorizationStatus}',
-    );
+    debugPrint('Notification permission: ${settings.authorizationStatus}');
   }
 
   Future<void> _initLocalNotifications() async {
@@ -70,7 +68,8 @@ class FcmService {
 
     if (Platform.isAndroid) {
       await _localNotif
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(
             const AndroidNotificationChannel(
               _channelId,
@@ -165,29 +164,80 @@ class FcmService {
     }
   }
 
- /// Kirim notif ke SATU admin spesifik (A → B, bukan C)
-/// Kirim notif ke 1 admin spesifik (A → B, bukan C)
-Future<void> sendVerifikasiNotifToAdmin({
-  required String porterNama,
-  required String porterId,
-  required String targetAdminId,
-}) async {
-  try {
-    await _supabase.functions.invoke(
-      'send-fcm-notification',
-      body: {
-        'target_admin_id': targetAdminId,
-        'porter_nama': porterNama,
-        'porter_id': porterId,
-        'title': 'Pengajuan Verifikasi Porter Baru',
-        'body': '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
-      },
-    );
-    debugPrint('✅ Notif terkirim ke admin $targetAdminId');
-  } catch (e) {
-    debugPrint('❌ Gagal kirim notif: $e');
+  Future<void> saveUserToken(String userId) async {
+    await _saveRoleToken(table: 'users', id: userId, label: 'user');
   }
-}
+
+  Future<void> clearUserToken(String userId) async {
+    await _clearRoleToken(table: 'users', id: userId, label: 'user');
+  }
+
+  Future<void> savePorterToken(String porterId) async {
+    await _saveRoleToken(table: 'porters', id: porterId, label: 'porter');
+  }
+
+  Future<void> clearPorterToken(String porterId) async {
+    await _clearRoleToken(table: 'porters', id: porterId, label: 'porter');
+  }
+
+  Future<void> _saveRoleToken({
+    required String table,
+    required String id,
+    required String label,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) return;
+
+      await _supabase.from(table).update({
+        'fcm_token': token,
+        'fcm_token_updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', id);
+
+      debugPrint('FCM token $label disimpan');
+    } catch (e) {
+      debugPrint('Gagal simpan FCM token $label: $e');
+    }
+  }
+
+  Future<void> _clearRoleToken({
+    required String table,
+    required String id,
+    required String label,
+  }) async {
+    try {
+      await _supabase.from(table).update({
+        'fcm_token': null,
+      }).eq('id', id);
+
+      debugPrint('FCM token $label dihapus');
+    } catch (e) {
+      debugPrint('Gagal hapus FCM token $label: $e');
+    }
+  }
+
+  Future<void> sendVerifikasiNotifToAdmin({
+    required String porterNama,
+    required String porterId,
+    required String targetAdminId,
+  }) async {
+    try {
+      await _supabase.functions.invoke(
+        'send-fcm-notification',
+        body: {
+          'target_admin_id': targetAdminId,
+          'porter_nama': porterNama,
+          'porter_id': porterId,
+          'title': 'Pengajuan Verifikasi Porter Baru',
+          'body': '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
+        },
+      );
+      debugPrint('Notif terkirim ke admin $targetAdminId');
+    } catch (e) {
+      debugPrint('Gagal kirim notif: $e');
+    }
+  }
+
   Future<void> _sendFcmMessage({
     required String token,
     required String title,

@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/call_service.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -43,6 +44,7 @@ class UserTrackingScreen extends StatefulWidget {
 
 class _UserTrackingScreenState extends State<UserTrackingScreen> {
   final _mapController = MapController();
+  static const _callCenterPhone = '081234567890';
 
   LatLng? _porterLatLng;
   String _orderStatus = '';
@@ -432,7 +434,11 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                             ),
                           ),
                           OutlinedButton.icon(
-                            onPressed: () {},
+                            onPressed: () => CallService.callPhone(
+                              context,
+                              _porterPhone,
+                              targetLabel: 'porter',
+                            ),
                             icon: const Icon(Icons.phone_rounded, size: 16),
                             label: const Text('Hubungi'),
                             style: OutlinedButton.styleFrom(
@@ -454,6 +460,23 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                         label: 'Tujuan',
                         text: widget.lokasiTujuan,
                         isDestination: true,
+                      ),
+
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => CallService.callPhone(
+                            context,
+                            _callCenterPhone,
+                            targetLabel: 'call center',
+                          ),
+                          icon: const Icon(
+                            Icons.support_agent_rounded,
+                            size: 16,
+                          ),
+                          label: const Text('Call Center Barang Hilang'),
+                        ),
                       ),
 
                       // Foto barang saat dijemput (muncul ketika porter

@@ -84,19 +84,16 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             child: Row(
               children: [
                 _NavItem(
-                  icon: Icons.inventory_2_outlined,
-                  selectedIcon: Icons.inventory_2_rounded,
+                  icon: Icons.inventory_2_rounded,
                   label: 'Pesan',
                   selected: _currentIndex == 0,
-                  badgeCount: _activeOrderCount,
                   onTap: () {
                     setState(() => _currentIndex = 0);
                     _loadBadges();
                   },
                 ),
                 _NavItem(
-                  icon: Icons.receipt_long_outlined,
-                  selectedIcon: Icons.receipt_long_rounded,
+                  icon: Icons.receipt_long_rounded,
                   label: 'Order',
                   selected: _currentIndex == 1,
                   badgeCount: _activeOrderCount,
@@ -106,8 +103,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                   },
                 ),
                 _NavItem(
-                  icon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
+                  icon: Icons.person_rounded,
                   label: 'Profil',
                   selected: _currentIndex == 2,
                   onTap: () => setState(() => _currentIndex = 2),
@@ -123,7 +119,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
-  final IconData selectedIcon;
   final String label;
   final bool selected;
   final int badgeCount;
@@ -131,7 +126,6 @@ class _NavItem extends StatelessWidget {
 
   const _NavItem({
     required this.icon,
-    required this.selectedIcon,
     required this.label,
     required this.selected,
     this.badgeCount = 0,
@@ -152,41 +146,34 @@ class _NavItem extends StatelessWidget {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: selected ? 58 : 46,
-                  height: selected ? 58 : 46,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   decoration: BoxDecoration(
-                    color: selected ? AppColors.primary : AppColors.grey200,
-                    borderRadius: BorderRadius.circular(selected ? 16 : 10),
-                    boxShadow: selected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.22),
-                              blurRadius: 12,
-                              offset: const Offset(0, 5),
-                            ),
-                          ]
-                        : [],
+                    color: selected
+                        ? AppColors.primary.withOpacity(0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusRound),
                   ),
                   child: Icon(
-                    selected ? selectedIcon : icon,
-                    color: selected ? AppColors.white : AppColors.grey500,
-                    size: selected ? 30 : 24,
+                    icon,
+                    color: selected ? AppColors.primary : AppColors.grey400,
+                    size: 24,
                   ),
                 ),
                 if (badgeCount > 0)
                   Positioned(
-                    right: -3,
-                    top: -5,
+                    right: 8,
+                    top: -4,
                     child: _Badge(count: badgeCount),
                   ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 color: selected ? AppColors.primary : AppColors.grey400,
               ),
             ),

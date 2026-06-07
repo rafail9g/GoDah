@@ -18,6 +18,7 @@ import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
 import '../../../core/services/map_service.dart';
 
@@ -36,6 +37,9 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   List<Map<String, dynamic>> _availableOrders = [];
   List<Map<String, dynamic>> _myActiveOrders = [];
   bool _loading = true;
+  int _totalSelesai = 0;
+  int _selesaiHariIni = 0;
+  double _avgRating = 0;
 
   // Track order mana yang sedang dalam proses accept (prevent double tap)
   String? _acceptingOrderId;
@@ -117,6 +121,39 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           ])
           .order('waktu_pesan', ascending: false);
       _myActiveOrders = List<Map<String, dynamic>>.from(myActive);
+
+      final completed = await _supabase
+          .from('orders')
+          .select('id, waktu_selesai')
+          .eq('porter_id', porter.id)
+          .eq('status', 'selesai');
+      final completedList = List<Map<String, dynamic>>.from(completed);
+      final today = DateTime.now();
+      _totalSelesai = completedList.length;
+      _selesaiHariIni = completedList.where((order) {
+        final raw = order['waktu_selesai'] as String?;
+        if (raw == null) return false;
+        final dt = DateTime.tryParse(raw)?.toLocal();
+        return dt != null &&
+            dt.year == today.year &&
+            dt.month == today.month &&
+            dt.day == today.day;
+      }).length;
+
+      final ratings = await _supabase
+          .from('ratings')
+          .select('nilai')
+          .eq('porter_id', porter.id);
+      final ratingList = List<Map<String, dynamic>>.from(ratings);
+      if (ratingList.isEmpty) {
+        _avgRating = 0;
+      } else {
+        final total = ratingList.fold<num>(
+          0,
+          (sum, item) => sum + (item['nilai'] as num? ?? 0),
+        );
+        _avgRating = total / ratingList.length;
+      }
     } catch (e) {
       debugPrint('Error loading dashboard: $e');
     } finally {
@@ -570,8 +607,12 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
@@ -628,13 +669,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.refresh_rounded,
-                                color: AppColors.white,
-                              ),
-                              onPressed: _load,
-                            ),
                           ],
                         ),
                         const SizedBox(height: 14),
@@ -663,7 +697,11 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
               padding: const EdgeInsets.all(16),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _StatsRow(totalSelesai: porter?.totalSelesai ?? 0),
+                  _StatsRow(
+                    totalSelesai: _totalSelesai,
+                    avgRating: _avgRating,
+                    selesaiHariIni: _selesaiHariIni,
+                  ),
                   const SizedBox(height: 20),
 
                   if (porter?.statusVerifikasi != 'disetujui') ...[
@@ -723,7 +761,8 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                 ]),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1009,6 +1048,25 @@ class _ActiveOrderCard extends StatelessWidget {
                   text: order['lokasi_tujuan'] as String? ?? '-',
                 ),
                 const SizedBox(height: 16),
+
+                OutlinedButton.icon(
+                  onPressed: () => CallService.callPhone(
+                    context,
+                    user['no_hp'] as String?,
+                    targetLabel: 'user',
+                  ),
+                  icon: const Icon(Icons.phone_rounded, size: 16),
+                  label: const Text('Hubungi User'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    foregroundColor: const Color(0xFF1E3C72),
+                    side: const BorderSide(color: Color(0xFF1E3C72)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
 
                 if (_nextLabel(status).isNotEmpty)
                   SizedBox(
@@ -1359,7 +1417,14 @@ class _OnlineToggleCard extends StatelessWidget {
 
 class _StatsRow extends StatelessWidget {
   final int totalSelesai;
-  const _StatsRow({required this.totalSelesai});
+  final double avgRating;
+  final int selesaiHariIni;
+
+  const _StatsRow({
+    required this.totalSelesai,
+    required this.avgRating,
+    required this.selesaiHariIni,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1369,21 +1434,18 @@ class _StatsRow extends StatelessWidget {
           icon: Icons.check_circle_rounded,
           label: 'Order Selesai',
           value: '$totalSelesai',
-          gradientColors: const [Color(0xFF11998E), Color(0xFF38EF7D)],
         ),
         const SizedBox(width: 10),
         _StatCard(
           icon: Icons.star_rounded,
           label: 'Rating',
-          value: '5.0',
-          gradientColors: const [Color(0xFFF2C94C), Color(0xFFF2994A)],
+          value: avgRating == 0 ? '-' : avgRating.toStringAsFixed(1),
         ),
         const SizedBox(width: 10),
         _StatCard(
           icon: Icons.local_shipping_rounded,
           label: 'Hari Ini',
-          value: '0',
-          gradientColors: const [Color(0xFF1E3C72), Color(0xFF2A5298)],
+          value: '$selesaiHariIni',
         ),
       ],
     );
@@ -1394,13 +1456,11 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final List<Color> gradientColors;
 
   const _StatCard({
     required this.icon,
     required this.label,
     required this.value,
-    required this.gradientColors,
   });
 
   @override
@@ -1409,17 +1469,13 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradientColors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF1E3C72),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: gradientColors[0].withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: const Color(0xFF1E3C72).withOpacity(0.16),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),

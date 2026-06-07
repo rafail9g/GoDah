@@ -58,21 +58,26 @@ class _PorterHistoryTabState extends State<PorterHistoryTab> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Riwayat Order'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _orders.isEmpty
-              ? _EmptyHistory()
+              ? RefreshIndicator(
+                  onRefresh: _load,
+                  color: AppColors.primary,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 120),
+                      _EmptyHistory(),
+                    ],
+                  ),
+                )
               : RefreshIndicator(
                   onRefresh: _load,
                   color: AppColors.primary,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     itemCount: _orders.length,
                     itemBuilder: (context, i) {

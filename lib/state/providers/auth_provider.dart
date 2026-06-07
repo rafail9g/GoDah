@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/fcm_service.dart';
 import '../models/user_model.dart';
@@ -9,6 +11,8 @@ import '../../core/utils/app_result.dart';
 final _supabase = Supabase.instance.client;
 
 class AuthProvider extends ChangeNotifier {
+  static const _adminSessionKey = 'godah_admin_id';
+
   UserModel? _currentUser;
   PorterModel? _currentPorter;
   AdminModel? _currentAdmin;
@@ -36,6 +40,12 @@ class AuthProvider extends ChangeNotifier {
       _currentAdmin == null &&
       _role == null;
 
+  void _notifyNextFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+  }
+
   Future<void> init() async {
     _isLoading = true;
     notifyListeners();
@@ -44,6 +54,8 @@ class AuthProvider extends ChangeNotifier {
       final session = _supabase.auth.currentSession;
       if (session != null) {
         await _loadProfile(session.user.id);
+      } else {
+        await _restoreAdminSession();
       }
     } catch (_) {}
 
@@ -68,6 +80,7 @@ class AuthProvider extends ChangeNotifier {
         _currentPorter = null;
         _currentAdmin = null;
         _role = null;
+        _isLoading = false;
         notifyListeners();
       }
     });
@@ -76,6 +89,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _loadProfile(String uid) async {
     _currentUser = null;
     _currentPorter = null;
+    _currentAdmin = null;
     _role = null;
 
     for (int attempt = 0; attempt < 3; attempt++) {
@@ -90,6 +104,7 @@ class AuthProvider extends ChangeNotifier {
           _currentUser = UserModel.fromJson(userRes);
           _currentPorter = null;
           _role = 'user';
+          await FcmService.instance.saveUserToken(_currentUser!.id);
           return;
         }
 
@@ -103,6 +118,7 @@ class AuthProvider extends ChangeNotifier {
           _currentPorter = PorterModel.fromJson(porterRes);
           _currentUser = null;
           _role = 'porter';
+          await FcmService.instance.savePorterToken(_currentPorter!.id);
           return;
         }
 
@@ -114,6 +130,42 @@ class AuthProvider extends ChangeNotifier {
           await Future.delayed(const Duration(seconds: 1));
         }
       }
+    }
+  }
+
+  Future<void> _restoreAdminSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final adminId = prefs.getString(_adminSessionKey);
+    if (adminId == null || adminId.isEmpty) return;
+
+    try {
+      final res =
+          await _supabase.from('admins').select().eq('id', adminId).maybeSingle();
+      if (res == null) {
+        await prefs.remove(_adminSessionKey);
+        return;
+      }
+
+      _currentAdmin = AdminModel.fromJson(res);
+      _currentUser = null;
+      _currentPorter = null;
+      _role = 'admin';
+      await FcmService.instance.saveAdminToken(_currentAdmin!.id);
+    } catch (_) {}
+  }
+
+  Future<void> refreshCurrentSession() async {
+    final session = _supabase.auth.currentSession;
+
+    if (session != null) {
+      await _loadProfile(session.user.id);
+      notifyListeners();
+      return;
+    }
+
+    if (_currentAdmin != null) {
+      await _restoreAdminSession();
+      notifyListeners();
     }
   }
 
@@ -346,7 +398,10 @@ class AuthProvider extends ChangeNotifier {
       }
 
       _currentAdmin = AdminModel.fromJson(res);
+      _role = 'admin';
       notifyListeners();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_adminSessionKey, _currentAdmin!.id);
       await FcmService.instance.saveAdminToken(_currentAdmin!.id);
 
       return Success(_currentAdmin!);
@@ -366,19 +421,32 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _isLoading = true;
+    notifyListeners();
+
     if (_currentAdmin != null) {
       await FcmService.instance.clearAdminToken(_currentAdmin!.id);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_adminSessionKey);
       _currentAdmin = null;
+      _role = null;
+      _isLoading = false;
       notifyListeners();
       return;
     }
 
+    final userId = _currentUser?.id;
+    final porterId = _currentPorter?.id;
+
+    if (userId != null) await FcmService.instance.clearUserToken(userId);
+    if (porterId != null) await FcmService.instance.clearPorterToken(porterId);
+    await _supabase.auth.signOut();
+
     _currentUser = null;
     _currentPorter = null;
     _role = null;
+    _isLoading = false;
     notifyListeners();
-
-    await _supabase.auth.signOut();
   }
 
   Future<void> reloadPorterProfile() async {
@@ -386,6 +454,63 @@ class AuthProvider extends ChangeNotifier {
 
     await _loadProfile(_currentPorter!.id);
     notifyListeners();
+  }
+
+  Future<void> reloadUserProfile() async {
+    if (_currentUser == null) return;
+
+    await _loadProfile(_currentUser!.id);
+    notifyListeners();
+  }
+
+  Future<AppResult<void>> updateUserProfile({
+    required String nama,
+    required String noHp,
+    String? alamat,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      return Failure(AppError(message: 'Profil user tidak ditemukan.'));
+    }
+
+    try {
+      await _supabase.from('users').update({
+        'nama': nama.trim(),
+        'no_hp': noHp.trim(),
+        'alamat': alamat?.trim(),
+      }).eq('id', user.id);
+
+      await _loadProfile(user.id);
+      notifyListeners();
+
+      return const Success(null);
+    } catch (e) {
+      return Failure(AppError.fromException(e));
+    }
+  }
+
+  Future<AppResult<void>> updatePorterProfile({
+    required String nama,
+    required String noHp,
+  }) async {
+    final porter = _currentPorter;
+    if (porter == null) {
+      return Failure(AppError(message: 'Profil porter tidak ditemukan.'));
+    }
+
+    try {
+      await _supabase.from('porters').update({
+        'nama': nama.trim(),
+        'no_hp': noHp.trim(),
+      }).eq('id', porter.id);
+
+      await _loadProfile(porter.id);
+      notifyListeners();
+
+      return const Success(null);
+    } catch (e) {
+      return Failure(AppError.fromException(e));
+    }
   }
 
   String _translateAuthError(String msg) {

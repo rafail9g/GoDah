@@ -5,12 +5,103 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
 
 class PorterProfileTab extends StatelessWidget {
   const PorterProfileTab({super.key});
 
-  @override
+  static const _callCenterPhone = '081234567890';
+
+  Future<void> _showEditProfileDialog(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    final porter = auth.currentPorter;
+    if (porter == null) return;
+
+    final namaCtrl = TextEditingController(text: porter.nama);
+    final hpCtrl = TextEditingController(text: porter.noHp);
+
+    final payload = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Profil Porter'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: namaCtrl,
+              decoration: const InputDecoration(labelText: 'Nama'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: hpCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'No. HP'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (namaCtrl.text.trim().isEmpty || hpCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Nama dan nomor HP wajib diisi.'),
+                    backgroundColor: AppColors.warning,
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(ctx, {
+                'nama': namaCtrl.text,
+                'noHp': hpCtrl.text,
+              });
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    namaCtrl.dispose();
+    hpCtrl.dispose();
+
+    if (payload == null || !context.mounted) return;
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!context.mounted) return;
+
+    final result = await auth.updatePorterProfile(
+      nama: payload['nama'] ?? '',
+      noHp: payload['noHp'] ?? '',
+    );
+    if (!context.mounted) return;
+
+    result.when(
+      success: (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil porter berhasil diperbarui.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      },
+      failure: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -147,15 +238,25 @@ class PorterProfileTab extends StatelessWidget {
                   ),
                   _InfoCard(children: [
                     _MenuRow(
+                      icon: Icons.edit_rounded,
+                      label: 'Edit Profil',
+                      onTap: () => _showEditProfileDialog(context),
+                    ),
+                    const Divider(height: 1),
+                    _MenuRow(
                       icon: Icons.upload_file_rounded,
                       label: 'Verifikasi Dokumen',
                       onTap: () => context.push('/porter/verification'),
                     ),
                     const Divider(height: 1),
                     _MenuRow(
-                      icon: Icons.help_outline_rounded,
-                      label: 'Bantuan & FAQ',
-                      onTap: () {},
+                      icon: Icons.support_agent_rounded,
+                      label: 'Call Center',
+                      onTap: () => CallService.callPhone(
+                        context,
+                        _callCenterPhone,
+                        targetLabel: 'call center',
+                      ),
                     ),
                     const Divider(height: 1),
                     _MenuRow(

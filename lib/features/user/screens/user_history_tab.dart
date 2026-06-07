@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
 import 'user_tracking_screen.dart';
 
@@ -72,7 +73,7 @@ class _UserHistoryTabState extends State<UserHistoryTab>
             *,
             porters(id, nama, no_hp, foto_profil),
             bukti_pengiriman(foto_url, keterangan, jenis_bukti),
-            ratings(nilai, ulasan)
+            ratings(id, order_id, nilai, ulasan)
           ''')
           .eq('user_id', user.id)
           .inFilter('status', ['selesai', 'batal'])
@@ -195,6 +196,25 @@ class _UserHistoryTabState extends State<UserHistoryTab>
     try {
       if (!mounted) return;
       final user = context.read<AuthProvider>().currentUser;
+      final existing = await _supabase
+          .from('ratings')
+          .select('id')
+          .eq('order_id', orderId)
+          .eq('user_id', user?.id ?? '')
+          .maybeSingle();
+
+      if (existing != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order ini sudah pernah diberi rating.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        await _load();
+        return;
+      }
+
       await _supabase.from('ratings').insert({
         'order_id': orderId,
         'user_id': user?.id,
@@ -253,9 +273,6 @@ class _UserHistoryTabState extends State<UserHistoryTab>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Riwayat Pesanan'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
-        ],
         bottom: TabBar(
           controller: _tabCtrl,
           indicatorColor: AppColors.white,
@@ -278,10 +295,12 @@ class _UserHistoryTabState extends State<UserHistoryTab>
                   orders: _activeOrders,
                   onBatal: _batalOrder,
                   onLacak: _lacakPorter,
+                  onRefresh: _load,
                 ),
                 _CompletedOrderList(
                   orders: _completedOrders,
                   onKirimRating: _kirimRating,
+                  onRefresh: _load,
                 ),
               ],
             ),
@@ -297,26 +316,39 @@ class _ActiveOrderList extends StatelessWidget {
   final List<Map<String, dynamic>> orders;
   final void Function(String) onBatal;
   final void Function(Map<String, dynamic>) onLacak;
+  final Future<void> Function() onRefresh;
 
   const _ActiveOrderList({
     required this.orders,
     required this.onBatal,
     required this.onLacak,
+    required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return _EmptyState(
-        icon: Icons.inbox_rounded,
-        title: 'Tidak Ada Order Aktif',
-        subtitle: 'Buat pesanan baru dari tab Pesan.',
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        color: AppColors.primary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 120),
+            _EmptyState(
+              icon: Icons.inbox_rounded,
+              title: 'Tidak Ada Order Aktif',
+              subtitle: 'Buat pesanan baru dari tab Pesan.',
+            ),
+          ],
+        ),
       );
     }
     return RefreshIndicator(
-      onRefresh: () async {},
+      onRefresh: onRefresh,
       color: AppColors.primary,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: orders.length,
         itemBuilder: (_, i) => _ActiveOrderCard(
@@ -508,7 +540,11 @@ class _ActiveOrderCard extends StatelessWidget {
                       ),
                       // Tombol Hubungi
                       OutlinedButton.icon(
-                        onPressed: () {},
+                        onPressed: () => CallService.callPhone(
+                          context,
+                          porter['no_hp'] as String?,
+                          targetLabel: 'porter',
+                        ),
                         icon: const Icon(Icons.phone_rounded, size: 14),
                         label: const Text('Hubungi'),
                         style: OutlinedButton.styleFrom(
@@ -646,36 +682,53 @@ class _TrackingItem extends StatelessWidget {
 class _CompletedOrderList extends StatelessWidget {
   final List<Map<String, dynamic>> orders;
   final void Function(String orderId, String porterId) onKirimRating;
+  final Future<void> Function() onRefresh;
 
   const _CompletedOrderList({
     required this.orders,
     required this.onKirimRating,
+    required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return _EmptyState(
-        icon: Icons.history_rounded,
-        title: 'Belum Ada Riwayat',
-        subtitle: 'Order yang selesai akan tampil di sini.',
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        color: AppColors.primary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 120),
+            _EmptyState(
+              icon: Icons.history_rounded,
+              title: 'Belum Ada Riwayat',
+              subtitle: 'Order yang selesai akan tampil di sini.',
+            ),
+          ],
+        ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: orders.length,
-      itemBuilder: (_, i) {
-        final order = orders[i];
-        final porter = order['porters'] as Map<String, dynamic>?;
-        final porterId =
-            porter?['id'] as String? ?? order['porter_id'] as String? ?? '';
-        return _CompletedOrderCard(
-          order: order,
-          onKirimRating: porterId.isNotEmpty
-              ? () => onKirimRating(order['id'] as String, porterId)
-              : null,
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: AppColors.primary,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        itemCount: orders.length,
+        itemBuilder: (_, i) {
+          final order = orders[i];
+          final porter = order['porters'] as Map<String, dynamic>?;
+          final porterId =
+              porter?['id'] as String? ?? order['porter_id'] as String? ?? '';
+          return _CompletedOrderCard(
+            order: order,
+            onKirimRating: porterId.isNotEmpty
+                ? () => onKirimRating(order['id'] as String, porterId)
+                : null,
+          );
+        },
+      ),
     );
   }
 }
