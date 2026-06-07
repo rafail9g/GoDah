@@ -1145,7 +1145,7 @@ class _AvailableOrderCard extends StatelessWidget {
               children: [
                 _InfoChip(icon: Icons.inventory_2_outlined, text: jenisBrg),
                 if (berat != null)
-                  _InfoChip(icon: Icons.scale_rounded, text: '${berat} kg'),
+                  _InfoChip(icon: Icons.scale_rounded, text: '$berat kg'),
                 _InfoChip(
                   icon: Icons.person_outline_rounded,
                   text: user['nama'] as String? ?? 'User',

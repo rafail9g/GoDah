@@ -1,19 +1,18 @@
 // lib/features/user/screens/user_order_tab.dart
-// UPDATED: Integrasi GPS + OpenStreetMap (OSM) menggunakan flutter_map
-// Berdasarkan materi slide 3-9: GPS → koordinat → tampil di OSM
+// UPDATED: Integrasi Midtrans payment gateway
+// Flow: Buat order di Supabase → Navigate ke payment screen → Midtrans → Konfirmasi
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/utils/validators.dart';
-import '../../../state/providers/auth_provider.dart';
 import '../../../core/services/map_service.dart';
+import '../../../state/providers/auth_provider.dart';
+import 'user_payment_screen.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -25,18 +24,17 @@ class UserOrderTab extends StatefulWidget {
 }
 
 class _UserOrderTabState extends State<UserOrderTab> {
-  final _formKey = GlobalKey<FormState>();
   final _tujuanCtrl = TextEditingController();
   final _catatanCtrl = TextEditingController();
-  final _mapController = MapController(); // MapController dari flutter_map - slide 6
+  final _mapController = MapController();
 
   // ── Lokasi State ───────────────────────────────────────────────
-  LatLng? _lokasiJemput;        // Koordinat lokasi user (GPS otomatis)
-  LatLng? _lokasiTujuan;        // Koordinat tujuan (dipilih di map)
-  String _alamatJemput = '';    // Alamat hasil geocoding
+  LatLng? _lokasiJemput;
+  LatLng? _lokasiTujuan;
+  String _alamatJemput = '';
   bool _loadingGPS = false;
   bool _loadingSubmit = false;
-  bool _mapSelectingTujuan = false; // Mode pilih tujuan di peta
+  bool _mapSelectingTujuan = false;
 
   // ── Detail Order ───────────────────────────────────────────────
   String _jenisBrg = 'Koper / Tas Besar';
@@ -52,7 +50,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
   void initState() {
     super.initState();
     _loadData();
-    _getCurrentLocation(); // Otomatis ambil GPS saat halaman dibuka
+    _getCurrentLocation();
   }
 
   @override
@@ -71,7 +69,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     } catch (_) {}
   }
 
-  // ── Slide 9: Ambil lokasi GPS otomatis ───────────────────────
   Future<void> _getCurrentLocation() async {
     setState(() => _loadingGPS = true);
     try {
@@ -82,7 +79,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
           _alamatJemput =
               'Lat: ${position.latitude.toStringAsFixed(5)}, Lng: ${position.longitude.toStringAsFixed(5)}';
         });
-        // Pindahkan camera map ke lokasi user
         _mapController.move(_lokasiJemput!, 16.0);
       }
     } catch (e) {
@@ -99,7 +95,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     }
   }
 
-  // ── Pilih lokasi tujuan dengan tap di peta ────────────────────
   void _onMapTap(TapPosition tapPos, LatLng latlng) {
     if (_mapSelectingTujuan) {
       setState(() {
@@ -112,7 +107,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     }
   }
 
-  // ── Hitung estimasi biaya dengan jarak nyata dari GPS ─────────
   void _hitungEstimasi() {
     if (_lokasiJemput == null || _lokasiTujuan == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -157,6 +151,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
     });
   }
 
+  // ── UPDATED: Buat order → navigate ke payment screen ─────────────
   Future<void> _buatOrder() async {
     if (_lokasiJemput == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -180,7 +175,8 @@ class _UserOrderTabState extends State<UserOrderTab> {
     setState(() => _loadingSubmit = true);
 
     try {
-      final user = context.read<AuthProvider>().currentUser;
+      final auth = context.read<AuthProvider>();
+      final user = auth.currentUser;
       if (user == null) return;
 
       final tarif = _tarifList.isNotEmpty
@@ -195,15 +191,19 @@ class _UserOrderTabState extends State<UserOrderTab> {
 
       final totalBiaya = _estimasiBiaya > 0 ? _estimasiBiaya : 15000.0;
 
-      await _supabase.from('orders').insert({
+      final lokasiJemputStr = _alamatJemput.isNotEmpty
+          ? _alamatJemput
+          : 'Lokasi GPS (${_lokasiJemput!.latitude.toStringAsFixed(4)}, ${_lokasiJemput!.longitude.toStringAsFixed(4)})';
+
+      final lokasiTujuanStr = _tujuanCtrl.text.trim().isNotEmpty
+          ? _tujuanCtrl.text.trim()
+          : 'Tujuan (${_lokasiTujuan!.latitude.toStringAsFixed(4)}, ${_lokasiTujuan!.longitude.toStringAsFixed(4)})';
+
+      // 1. Insert order ke Supabase (status awal 'menunggu')
+      final insertRes = await _supabase.from('orders').insert({
         'user_id': user.id,
-        'lokasi_jemput': _alamatJemput.isNotEmpty
-            ? _alamatJemput
-            : 'Lokasi GPS (${_lokasiJemput!.latitude.toStringAsFixed(4)}, ${_lokasiJemput!.longitude.toStringAsFixed(4)})',
-        'lokasi_tujuan': _tujuanCtrl.text.trim().isNotEmpty
-            ? _tujuanCtrl.text.trim()
-            : 'Tujuan (${_lokasiTujuan!.latitude.toStringAsFixed(4)}, ${_lokasiTujuan!.longitude.toStringAsFixed(4)})',
-        // Koordinat GPS nyata — bukan dummy 0.0 lagi!
+        'lokasi_jemput': lokasiJemputStr,
+        'lokasi_tujuan': lokasiTujuanStr,
         'lat_jemput': _lokasiJemput!.latitude,
         'lng_jemput': _lokasiJemput!.longitude,
         'lat_tujuan': _lokasiTujuan!.latitude,
@@ -212,40 +212,62 @@ class _UserOrderTabState extends State<UserOrderTab> {
         'estimasi_berat': _estimasiBerat,
         'jenis_layanan': _jenisLayanan,
         'total_biaya': totalBiaya,
-        if (_catatanCtrl.text.trim().isNotEmpty) 'catatan': _catatanCtrl.text.trim(),
+        if (_catatanCtrl.text.trim().isNotEmpty)
+          'catatan': _catatanCtrl.text.trim(),
         if (tarif != null) 'tarif_id': tarif['id'],
-      });
+      }).select('id').single();
 
       if (!mounted) return;
-      setState(() {
-        _loadingSubmit = false;
-        _lokasiTujuan = null;
-        _tujuanCtrl.clear();
-        _catatanCtrl.clear();
-        _showEstimasi = false;
-        _estimasiBiaya = 0;
-      });
+      setState(() => _loadingSubmit = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Order berhasil dibuat! Porter sedang dicari...'),
-          backgroundColor: AppColors.success,
-          duration: Duration(seconds: 3),
+      final orderId = insertRes['id'] as String;
+
+      // 2. Navigate ke payment screen
+      final paymentSuccess = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => UserPaymentScreen(
+            orderId: orderId,
+            totalBiaya: totalBiaya,
+            lokasiJemput: lokasiJemputStr,
+            lokasiTujuan: lokasiTujuanStr,
+            jenisBrg: _jenisBrg,
+            customerName: user.nama,
+            customerEmail: user.email,
+          ),
         ),
       );
+
+      // 3. Kalau payment sukses, reset form
+      if (paymentSuccess == true && mounted) {
+        setState(() {
+          _lokasiTujuan = null;
+          _tujuanCtrl.clear();
+          _catatanCtrl.clear();
+          _showEstimasi = false;
+          _estimasiBiaya = 0;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Order berhasil dibuat! Porter sedang dicari...'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingSubmit = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal: $e'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text('Gagal membuat order: $e'),
+          backgroundColor: AppColors.error,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().currentUser;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Column(
@@ -293,24 +315,15 @@ class _UserOrderTabState extends State<UserOrderTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── PETA INTERAKTIF (flutter_map + OSM) ─────────
-                  // Slide 3-6 materi: FlutterMap + TileLayer + MarkerLayer
                   _buildMapSection(),
                   const SizedBox(height: 16),
-
-                  // ── Form Detail Barang ────────────────────────
                   _buildDetailBarangCard(),
                   const SizedBox(height: 16),
-
-                  // ── Jenis Layanan ─────────────────────────────
                   _buildLayananCard(),
                   const SizedBox(height: 16),
-
-                  // ── Catatan ───────────────────────────────────
                   _buildCatatanCard(),
                   const SizedBox(height: 20),
 
-                  // ── Estimasi & Tombol ─────────────────────────
                   if (_showEstimasi) ...[
                     _EstimasiCard(
                       biaya: _estimasiBiaya,
@@ -334,6 +347,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
                       ),
                     )
                   else
+                    // ── TOMBOL BAYAR (bukan lagi "Pesan Sekarang" langsung) ──
                     ElevatedButton.icon(
                       onPressed: _loadingSubmit ? null : _buatOrder,
                       icon: _loadingSubmit
@@ -341,11 +355,12 @@ class _UserOrderTabState extends State<UserOrderTab> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.white))
-                          : const Icon(Icons.local_shipping_rounded, size: 20),
+                                  strokeWidth: 2, color: AppColors.white))
+                          : const Icon(Icons.payment_rounded, size: 20),
                       label: Text(
-                        _loadingSubmit ? 'Memproses...' : 'Pesan Sekarang',
+                        _loadingSubmit
+                            ? 'Menyiapkan...'
+                            : 'Lanjut ke Pembayaran',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -366,8 +381,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     );
   }
 
-  // ── Widget Peta OpenStreetMap ────────────────────────────────────
-  // Slide 6 materi: MapOptions + TileLayer + MarkerLayer + MapController
   Widget _buildMapSection() {
     return Container(
       decoration: BoxDecoration(
@@ -387,20 +400,17 @@ class _UserOrderTabState extends State<UserOrderTab> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
               children: [
-                Text(
-                  '📍 Pilih Lokasi',
-                  style: AppTextStyles.h4.copyWith(
-                      color: AppColors.primary, fontWeight: FontWeight.bold),
-                ),
+                Text('📍 Pilih Lokasi',
+                    style: AppTextStyles.h4.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold)),
                 const Spacer(),
-                // Tombol refresh GPS
                 IconButton(
                   icon: _loadingGPS
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2))
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.my_location_rounded,
                           color: AppColors.primary),
                   tooltip: 'Refresh GPS',
@@ -409,34 +419,25 @@ class _UserOrderTabState extends State<UserOrderTab> {
               ],
             ),
           ),
-
-          // Peta OSM 300px
           ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.zero),
             child: SizedBox(
               height: 300,
               child: FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
-                  // Slide 8: Setup initial location & zoom level
                   initialCenter: _lokasiJemput ??
-                      const LatLng(-7.9797, 113.6175), // Default Jember
+                      const LatLng(-7.9797, 113.6175),
                   initialZoom: 15.0,
-                  onTap: _onMapTap, // Tap untuk pilih tujuan
+                  onTap: _onMapTap,
                 ),
                 children: [
-                  // Slide 6: TileLayer — mengambil tile dari server OSM
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.go_dah',
                   ),
-
-                  // Slide 6: MarkerLayer — marker lokasi jemput & tujuan
                   MarkerLayer(
                     markers: [
-                      // Marker lokasi user (hijau)
                       if (_lokasiJemput != null)
                         Marker(
                           point: _lokasiJemput!,
@@ -448,7 +449,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
                             size: 36,
                           ),
                         ),
-                      // Marker tujuan (merah)
                       if (_lokasiTujuan != null)
                         Marker(
                           point: _lokasiTujuan!,
@@ -462,8 +462,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
                         ),
                     ],
                   ),
-
-                  // Garis rute jemput → tujuan
                   if (_lokasiJemput != null && _lokasiTujuan != null)
                     PolylineLayer(
                       polylines: [
@@ -471,7 +469,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
                           points: [_lokasiJemput!, _lokasiTujuan!],
                           strokeWidth: 3.5,
                           color: const Color(0xFF1E3C72),
-                          isDotted: false,
                         ),
                       ],
                     ),
@@ -479,13 +476,10 @@ class _UserOrderTabState extends State<UserOrderTab> {
               ),
             ),
           ),
-
-          // ── Kontrol lokasi di bawah peta ──────────────────────
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Status lokasi jemput (GPS otomatis)
                 _LokasiRow(
                   icon: Icons.radio_button_checked_rounded,
                   color: AppColors.success,
@@ -500,15 +494,14 @@ class _UserOrderTabState extends State<UserOrderTab> {
                   isLoading: _loadingGPS,
                 ),
                 const SizedBox(height: 10),
-
-                // Tombol pilih tujuan di peta
                 if (_lokasiTujuan == null)
                   OutlinedButton.icon(
                     onPressed: () {
                       setState(() => _mapSelectingTujuan = true);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('👆 Ketuk peta untuk pilih lokasi tujuan'),
+                          content: Text(
+                              '👆 Ketuk peta untuk pilih lokasi tujuan'),
                           duration: Duration(seconds: 3),
                           backgroundColor: AppColors.primary,
                         ),
@@ -832,7 +825,9 @@ class _KategoriCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF1E3C72).withOpacity(0.06) : AppColors.grey50,
+        color: selected
+            ? const Color(0xFF1E3C72).withOpacity(0.06)
+            : AppColors.grey50,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: selected ? const Color(0xFF1E3C72) : AppColors.grey200,
@@ -848,7 +843,9 @@ class _KategoriCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon,
-                  color: selected ? const Color(0xFF1E3C72) : AppColors.grey600,
+                  color: selected
+                      ? const Color(0xFF1E3C72)
+                      : AppColors.grey600,
                   size: 24),
               const SizedBox(height: 8),
               Padding(
@@ -859,7 +856,9 @@ class _KategoriCard extends StatelessWidget {
                     fontSize: 10,
                     fontWeight:
                         selected ? FontWeight.bold : FontWeight.w500,
-                    color: selected ? const Color(0xFF1E3C72) : AppColors.grey700,
+                    color: selected
+                        ? const Color(0xFF1E3C72)
+                        : AppColors.grey700,
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -909,12 +908,16 @@ class _LayananCard extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon,
-                color: selected ? const Color(0xFF1E3C72) : AppColors.grey500,
+                color: selected
+                    ? const Color(0xFF1E3C72)
+                    : AppColors.grey500,
                 size: 32),
             const SizedBox(height: 10),
             Text(title,
                 style: AppTextStyles.labelLg.copyWith(
-                    color: selected ? const Color(0xFF1E3C72) : AppColors.grey800,
+                    color: selected
+                        ? const Color(0xFF1E3C72)
+                        : AppColors.grey800,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Text(subtitle,

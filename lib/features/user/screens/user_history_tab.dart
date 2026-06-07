@@ -879,7 +879,7 @@ class _CompletedOrderCard extends StatelessWidget {
                       ...List.generate(
                         5,
                         (i) => Icon(
-                          i < (ratingData!['nilai'] as int? ?? 0)
+                          i < (ratingData['nilai'] as int? ?? 0)
                               ? Icons.star_rounded
                               : Icons.star_outline_rounded,
                           color: AppColors.warning,
@@ -889,7 +889,7 @@ class _CompletedOrderCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          ratingData!['ulasan'] as String? ??
+                          ratingData['ulasan'] as String? ??
                               'Tidak ada ulasan',
                           style: AppTextStyles.bodySm.copyWith(
                             color: AppColors.grey600,
