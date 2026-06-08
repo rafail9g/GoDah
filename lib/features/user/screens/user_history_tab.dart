@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -30,22 +31,35 @@ class _UserHistoryTabState extends State<UserHistoryTab>
   List<Map<String, dynamic>> _activeOrders = [];
   List<Map<String, dynamic>> _completedOrders = [];
   bool _loading = true;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
     _load();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _load(showLoading: false),
+    );
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _tabCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    if (showLoading && mounted) {
+      setState(() => _loading = true);
+    }
+
     try {
       final user = context.read<AuthProvider>().currentUser;
       if (user == null) return;
@@ -86,6 +100,7 @@ class _UserHistoryTabState extends State<UserHistoryTab>
     } catch (e) {
       debugPrint('Error loading history: $e');
     } finally {
+      _refreshing = false;
       if (mounted) setState(() => _loading = false);
     }
   }

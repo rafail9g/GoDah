@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 import 'dart:io';
 
 import '../../../core/constants/app_colors.dart';
@@ -21,6 +22,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
 import '../../../core/services/map_service.dart';
+import '../../../core/services/fcm_service.dart';
 
 final _supabase = Supabase.instance.client;
 
@@ -46,18 +48,32 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
 
   // GPS Stream state
   Stream<Position>? _locationStream;
+  StreamSubscription<Position>? _locationSubscription;
   Position? _currentPosition;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _startAutoRefresh();
     _startGPSStream();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    _locationSubscription?.cancel();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted || !_isOnline || _refreshing) return;
+      _load(showLoading: false);
+    });
   }
 
   void _startGPSStream() {
@@ -66,7 +82,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       distanceFilter: 10,
     );
 
-    _locationStream?.listen((position) async {
+    _locationSubscription = _locationStream?.listen((position) async {
       if (!mounted) return;
       setState(() => _currentPosition = position);
 
@@ -85,8 +101,14 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     });
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    if (showLoading && mounted) {
+      setState(() => _loading = true);
+    }
+
     try {
       final auth = context.read<AuthProvider>();
       final porter = auth.currentPorter;
@@ -157,6 +179,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     } catch (e) {
       debugPrint('Error loading dashboard: $e');
     } finally {
+      _refreshing = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -222,7 +245,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       // STEP 2: Verifikasi apakah kita yang berhasil mendapatkan order
       final verify = await _supabase
           .from('orders')
-          .select('porter_id, status')
+          .select('porter_id, status, user_id')
           .eq('id', orderId)
           .single();
 
@@ -251,6 +274,13 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'latitude': _currentPosition?.latitude,
         'longitude': _currentPosition?.longitude,
       });
+
+      await _sendStatusNotifToUser(
+        orderId: orderId,
+        userId: verify['user_id'] as String?,
+        status: 'diterima',
+        porterNama: porter.nama,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -314,6 +344,14 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'longitude': _currentPosition?.longitude,
       });
 
+      final order = await _getOrderNotifTarget(orderId);
+      await _sendStatusNotifToUser(
+        orderId: orderId,
+        userId: order?['user_id'] as String?,
+        status: next,
+        porterNama: order?['porter_nama'] as String?,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -357,26 +395,29 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Konfirmasi Tiba di Lokasi Jemput'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.file(
-                foto,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
+        content: SizedBox(
+          width: MediaQuery.sizeOf(ctx).width * 0.82,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(
+                  foto,
+                  height: 160,
+                  width: MediaQuery.sizeOf(ctx).width * 0.82,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Pastikan foto barang jelas sebelum diangkut.\n'
-              'Foto ini sebagai bukti kondisi barang saat dijemput.',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-          ],
+              const SizedBox(height: 10),
+              const Text(
+                'Pastikan foto barang jelas sebelum diangkut.\n'
+                'Foto ini sebagai bukti kondisi barang saat dijemput.',
+                style: TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -414,6 +455,14 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'latitude': _currentPosition?.latitude,
         'longitude': _currentPosition?.longitude,
       });
+
+      final order = await _getOrderNotifTarget(orderId);
+      await _sendStatusNotifToUser(
+        orderId: orderId,
+        userId: order?['user_id'] as String?,
+        status: 'dalam_perjalanan',
+        porterNama: order?['porter_nama'] as String?,
+      );
 
       // Simpan foto jemput di tabel bukti_pengiriman dengan flag 'jemput'
       final auth = context.read<AuthProvider>();
@@ -468,27 +517,30 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Konfirmasi Order Selesai'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.file(
-                foto,
-                height: 150,
-                width: double.infinity,
-                fit: BoxFit.cover,
+        content: SizedBox(
+          width: MediaQuery.sizeOf(ctx).width * 0.82,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(
+                  foto,
+                  height: 150,
+                  width: MediaQuery.sizeOf(ctx).width * 0.82,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: keteranganCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Keterangan (opsional)',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: keteranganCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Keterangan (opsional)',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -540,6 +592,14 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         'longitude': _currentPosition?.longitude,
       });
 
+      final order = await _getOrderNotifTarget(orderId);
+      await _sendStatusNotifToUser(
+        orderId: orderId,
+        userId: order?['user_id'] as String?,
+        status: 'selesai',
+        porterNama: porter?.nama ?? order?['porter_nama'] as String?,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -561,6 +621,42 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         );
       }
     }
+  }
+
+  Future<Map<String, dynamic>?> _getOrderNotifTarget(String orderId) async {
+    try {
+      final order = await _supabase
+          .from('orders')
+          .select('user_id, porters(nama)')
+          .eq('id', orderId)
+          .maybeSingle();
+
+      if (order == null) return null;
+      final porter = order['porters'] as Map<String, dynamic>?;
+      return {
+        'user_id': order['user_id'] as String?,
+        'porter_nama': porter?['nama'] as String?,
+      };
+    } catch (e) {
+      debugPrint('Gagal ambil target notif order: $e');
+      return null;
+    }
+  }
+
+  Future<void> _sendStatusNotifToUser({
+    required String orderId,
+    required String? userId,
+    required String status,
+    required String? porterNama,
+  }) async {
+    if (userId == null || userId.isEmpty) return;
+
+    await FcmService.instance.sendOrderStatusNotifToUser(
+      targetUserId: userId,
+      orderId: orderId,
+      status: status,
+      porterNama: porterNama,
+    );
   }
 
   Future<File?> _ambilFoto({String title = 'Ambil Foto'}) async {

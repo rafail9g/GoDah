@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -48,7 +49,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           children: [
             const Text('Admin Go-Dah', style: TextStyle(fontSize: 16)),
             Text(
-              admin?.nama?.isNotEmpty == true ? admin!.nama : 'Dashboard',
+              admin?.nama.isNotEmpty == true ? admin!.nama : 'Dashboard',
               style: const TextStyle(fontSize: 12, color: AppColors.primary100),
             ),
           ],
@@ -228,15 +229,33 @@ class _SimpleAdminTable extends StatefulWidget {
 class _SimpleAdminTableState extends State<_SimpleAdminTable> {
   List<Map<String, dynamic>> _data = [];
   bool _loading = true;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _load(showLoading: false),
+    );
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    if (showLoading && mounted) {
+      setState(() => _loading = true);
+    }
+
     try {
       final res = await _supabase
           .from(widget.table)
@@ -247,6 +266,7 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     } catch (e) {
       _showSnack('Gagal memuat ${widget.title}: $e', AppColors.error);
     } finally {
+      _refreshing = false;
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -597,15 +617,33 @@ class _VerifikasiListState extends State<_VerifikasiList>
 
   List<Map<String, dynamic>> _data = [];
   bool _loading = true;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _load(showLoading: false),
+    );
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    if (showLoading && mounted) {
+      setState(() => _loading = true);
+    }
+
     try {
       // Join porter_verifikasi dengan porters
       final res = await _supabase
@@ -614,12 +652,13 @@ class _VerifikasiListState extends State<_VerifikasiList>
           .eq('status', widget.status)
           .order('created_at', ascending: false);
 
-      setState(() {
-        _data = List<Map<String, dynamic>>.from(res);
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() => _data = List<Map<String, dynamic>>.from(res));
+      }
     } catch (e) {
-      setState(() => _loading = false);
+    } finally {
+      _refreshing = false;
+      if (mounted) setState(() => _loading = false);
     }
   }
 

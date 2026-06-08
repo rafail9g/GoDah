@@ -18,23 +18,21 @@ class FcmService {
   final _localNotif = FlutterLocalNotificationsPlugin();
   final _supabase = Supabase.instance.client;
 
-  static const _channelId = 'godah_verifikasi';
-  static const _channelName = 'Go-Dah Verifikasi';
+  static const _channelId = 'godah_orders';
+  static const _channelName = 'Go-Dah Orders';
+  static const _verificationChannelId = 'godah_verifikasi';
+  static const _verificationChannelName = 'Go-Dah Verifikasi';
 
   Future<void> init() async {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
-
     await _requestPermission();
     await _initLocalNotifications();
-
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotifTap);
-
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       _handleNotifTap(initialMessage);
     }
-
     debugPrint('FCM Service initialized');
   }
 
@@ -66,24 +64,30 @@ class FcmService {
       },
     );
 
-    if (Platform.isAndroid) {
-      await _localNotif
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(
-            const AndroidNotificationChannel(
-              _channelId,
-              _channelName,
-              description: 'Notifikasi verifikasi porter Go-Dah',
-              importance: Importance.high,
-            ),
-          );
+if (Platform.isAndroid) {
+      final androidImpl = _localNotif
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidImpl?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _channelId,
+          _channelName,
+          description: 'Notifikasi order Go-Dah',
+          importance: Importance.high,
+        ),
+      );
+      await androidImpl?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _verificationChannelId,
+          _verificationChannelName,
+          description: 'Notifikasi verifikasi porter Go-Dah',
+          importance: Importance.high,
+        ),
+      );
     }
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
     debugPrint('Foreground FCM: ${message.notification?.title}');
-
     final notification = message.notification;
     if (notification == null) return;
 
@@ -156,7 +160,6 @@ class FcmService {
       await _supabase.from('admins').update({
         'fcm_token': null,
       }).eq('id', adminId);
-
       await _messaging.deleteToken();
       debugPrint('FCM token admin dihapus');
     } catch (e) {
@@ -209,13 +212,13 @@ class FcmService {
       await _supabase.from(table).update({
         'fcm_token': null,
       }).eq('id', id);
-
       debugPrint('FCM token $label dihapus');
     } catch (e) {
       debugPrint('Gagal hapus FCM token $label: $e');
     }
   }
 
+  // ── Notif Verifikasi Porter ke Admin ──────────────────────────────
   Future<void> sendVerifikasiNotifToAdmin({
     required String porterNama,
     required String porterId,
@@ -238,24 +241,90 @@ class FcmService {
     }
   }
 
-  Future<void> _sendFcmMessage({
-    required String token,
-    required String title,
-    required String body,
-    Map<String, String> data = const {},
+  // ── Notif Order Baru ke Porter ─────────────────────────────────────
+  Future<void> sendNewOrderNotifToPorter({
+    required String targetPorterId,
+    required String orderId,
+    required String lokasiJemput,
+    required String lokasiTujuan,
+    required String jenisBrg,
   }) async {
     try {
       await _supabase.functions.invoke(
         'send-fcm-notification',
         body: {
-          'token': token,
-          'title': title,
-          'body': body,
-          'data': data,
+          'target_porter_id': targetPorterId,
+          'title': '🔔 Order Baru Masuk!',
+          'body': 'Ada order baru: $jenisBrg dari $lokasiJemput ke $lokasiTujuan. Segera terima!',
+          'type': 'order_new',
+          'data': {
+            'order_id': orderId,
+            'lokasi_jemput': lokasiJemput,
+            'lokasi_tujuan': lokasiTujuan,
+          },
         },
       );
+      debugPrint('Notif order baru terkirim ke porter $targetPorterId');
     } catch (e) {
-      debugPrint('Gagal invoke edge function: $e');
+      debugPrint('Gagal kirim notif order baru: $e');
     }
+  }
+
+  // ── Notif Status Order ke User ─────────────────────────────────────
+  Future<void> sendOrderStatusNotifToUser({
+    required String targetUserId,
+    required String orderId,
+    required String status,
+    String? porterNama,
+  }) async {
+    final (title, body) = _getStatusNotifContent(status, porterNama);
+    if (title == null) return;
+
+    try {
+      await _supabase.functions.invoke(
+        'send-fcm-notification',
+        body: {
+          'target_user_id': targetUserId,
+          'title': title,
+          'body': body,
+          'type': 'order_status',
+          'data': {
+            'order_id': orderId,
+            'status': status,
+          },
+        },
+      );
+      debugPrint('Notif status $status terkirim ke user $targetUserId');
+    } catch (e) {
+      debugPrint('Gagal kirim notif status order: $e');
+    }
+  }
+
+  // ── Helper: Konten Notif per Status ───────────────────────────────
+  (String?, String) _getStatusNotifContent(String status, String? porterNama) {
+    final nama = porterNama ?? 'Porter';
+    return switch (status) {
+      'diterima' => (
+          '✅ Order Diterima!',
+          '$nama sudah menerima ordermu dan akan segera menuju lokasimu.',
+        ),
+      'menuju_lokasi' => (
+          '🚶 Porter Menuju Lokasimu',
+          '$nama sedang dalam perjalanan ke titik penjemputan.',
+        ),
+      'dalam_perjalanan' => (
+          '🚚 Barang Sedang Diantar',
+          '$nama sudah mengambil barangmu dan sedang menuju tujuan.',
+        ),
+      'sampai_tujuan' => (
+          '📍 Barang Sudah Sampai!',
+          'Barangmu sudah tiba di tujuan. Silakan konfirmasi penerimaan.',
+        ),
+      'selesai' => (
+          '🎉 Order Selesai!',
+          'Ordermu telah selesai. Jangan lupa beri rating untuk $nama ya!',
+        ),
+      _ => (null, ''),
+    };
   }
 }

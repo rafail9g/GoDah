@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -19,6 +20,8 @@ class UserHomeScreen extends StatefulWidget {
 class _UserHomeScreenState extends State<UserHomeScreen> {
   int _currentIndex = 0;
   int _activeOrderCount = 0;
+  Timer? _autoRefreshTimer;
+  bool _refreshingBadges = false;
 
   final _supabase = Supabase.instance.client;
 
@@ -32,9 +35,22 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadBadges());
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _loadBadges(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadBadges() async {
+    if (_refreshingBadges) return;
+    _refreshingBadges = true;
+
     try {
       final user = context.read<AuthProvider>().currentUser;
       if (user == null) return;
@@ -56,6 +72,8 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       }
     } catch (_) {
       // Badge hanya pemanis UI; jangan ganggu halaman kalau query gagal.
+    } finally {
+      _refreshingBadges = false;
     }
   }
 

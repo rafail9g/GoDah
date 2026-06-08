@@ -7,7 +7,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -100,6 +99,7 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
     if (!success) {
       setState(() => _state = _PaymentState.waitingConfirmation);
+      
       _showSnack('Gagal konfirmasi pembayaran. Coba lagi.', AppColors.error);
       return;
     }

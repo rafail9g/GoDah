@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -19,15 +20,33 @@ class PorterHistoryTab extends StatefulWidget {
 class _PorterHistoryTabState extends State<PorterHistoryTab> {
   List<Map<String, dynamic>> _orders = [];
   bool _loading = true;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _load(showLoading: false),
+    );
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
+    if (showLoading && mounted) {
+      setState(() => _loading = true);
+    }
+
     try {
       final porter = context.read<AuthProvider>().currentPorter;
       if (porter == null) return;
@@ -48,6 +67,7 @@ class _PorterHistoryTabState extends State<PorterHistoryTab> {
     } catch (e) {
       debugPrint('Error loading history: $e');
     } finally {
+      _refreshing = false;
       if (mounted) setState(() => _loading = false);
     }
   }

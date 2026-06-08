@@ -1,83 +1,51 @@
-// supabase/functions/send-fcm-notification/index.ts
-// Edge Function: Proxy aman untuk kirim FCM push notification
-// Perangkat A (Porter) → Edge Function → FCM → Perangkat B (Admin)
-// Perangkat C (User/Porter lain) tidak menerima karena tokennya tidak dikirim
-
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// ── CORS Headers ───────────────────────────────────────────────────
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// ── Helper: Generate Google OAuth2 Access Token ────────────────────
-// FCM HTTP v1 API butuh OAuth2 token, bukan legacy server key
-async function getGoogleAccessToken(
-  serviceAccount: Record<string, string>,
-): Promise<string> {
+async function getGoogleAccessToken(serviceAccount: Record<string, string>): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
 
-  // Build JWT header & payload
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
-  const payload = btoa(
-    JSON.stringify({
-      iss: serviceAccount.client_email,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    }),
-  )
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+  const payload = btoa(JSON.stringify({
+    iss: serviceAccount.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
   const signingInput = `${header}.${payload}`
 
-  // Parse private key PEM → import sebagai CryptoKey
   const privateKeyPem = serviceAccount.private_key
     .replace(/\\n/g, '\n')
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
     .replace(/\s/g, '')
 
-  const privateKeyBytes = Uint8Array.from(
-    atob(privateKeyPem),
-    (c) => c.charCodeAt(0),
-  )
+  const privateKeyBytes = Uint8Array.from(atob(privateKeyPem), (c) => c.charCodeAt(0))
 
   const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    privateKeyBytes,
+    'pkcs8', privateKeyBytes,
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
+    false, ['sign'],
   )
 
-  // Sign JWT
   const signatureBuffer = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    cryptoKey,
-    new TextEncoder().encode(signingInput),
+    'RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(signingInput),
   )
 
-  const signature = btoa(
-    String.fromCharCode(...new Uint8Array(signatureBuffer)),
-  )
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+  const signature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
   const jwt = `${signingInput}.${signature}`
 
-  // Tukar JWT dengan access token Google
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -96,7 +64,6 @@ async function getGoogleAccessToken(
   return tokenData.access_token as string
 }
 
-// ── Helper: Kirim 1 FCM Message ke 1 Token (1 device) ─────────────
 async function sendToDevice(params: {
   accessToken: string
   projectId: string
@@ -117,26 +84,19 @@ async function sendToDevice(params: {
       },
       body: JSON.stringify({
         message: {
-          // ← token unik per device = hanya device ini yang terima
           token: fcmToken,
-          notification: {
-            title,
-            body,
-          },
+          notification: { title, body },
           data: data ?? {},
           android: {
             priority: 'high',
             notification: {
-              channel_id: 'godah_verifikasi',
+              channel_id: 'godah_orders',
               default_sound: true,
               default_vibrate_timings: true,
-              icon: 'ic_notification',
             },
           },
           apns: {
-            headers: {
-              'apns-priority': '10',
-            },
+            headers: { 'apns-priority': '10' },
             payload: {
               aps: {
                 alert: { title, body },
@@ -152,19 +112,14 @@ async function sendToDevice(params: {
   )
 
   const result = await response.json()
-
   if (!response.ok) {
-    // Token expired / tidak valid → kembalikan error tapi jangan crash
     const errCode = result?.error?.details?.[0]?.errorCode ?? result?.error?.message ?? 'UNKNOWN'
     return { success: false, error: errCode }
   }
-
   return { success: true, messageId: result.name }
 }
 
-// ── Main Handler ───────────────────────────────────────────────────
 serve(async (req: Request) => {
-  // Handle preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -177,25 +132,28 @@ serve(async (req: Request) => {
   }
 
   try {
-    // ── 1. Parse request body ──────────────────────────────────────
+    const body = await req.json()
     const {
-      target_admin_id, // ← ID admin spesifik (Perangkat B)
+      // Mode lama (verifikasi porter ke admin)
+      target_admin_id,
       porter_nama,
       porter_id,
+      // Mode baru (order notifications)
+      target_user_id,    // kirim ke user spesifik
+      target_porter_id,  // kirim ke porter spesifik
       title,
-      body,
+      body: notifBody,
       data,
-    } = await req.json()
+      type,              // tipe notif: 'order_new', 'order_accepted', dll
+    } = body
 
-    // Validasi minimal
-    if (!title || !body) {
+    if (!title || !notifBody) {
       return new Response(
         JSON.stringify({ error: '`title` dan `body` wajib diisi' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
-    // ── 2. Ambil service account dari env ──────────────────────────
     const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
     if (!serviceAccountJson) {
       throw new Error('Environment variable FIREBASE_SERVICE_ACCOUNT tidak ditemukan')
@@ -203,92 +161,112 @@ serve(async (req: Request) => {
     const serviceAccount = JSON.parse(serviceAccountJson)
     const projectId: string = serviceAccount.project_id
 
-    // ── 3. Ambil FCM token dari Supabase ───────────────────────────
-    // Pakai service role key agar bisa query tanpa RLS
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    let targetTokens: { id: string; fcm_token: string }[] = []
+    // ── Tentukan target token berdasarkan parameter ─────────────────
+    let targetToken: string | null = null
+    let targetTable: string | null = null
+    let targetId: string | null = null
 
-    if (target_admin_id) {
-      // Mode: kirim ke 1 admin spesifik → Perangkat B saja ✅
-      // Perangkat C (admin lain, user, porter) tidak dapat notif ❌
-      const { data: admin, error } = await supabase
-        .from('admins')
-        .select('id, fcm_token')
-        .eq('id', target_admin_id)
-        .not('fcm_token', 'is', null)
+    if (target_user_id) {
+      // Kirim ke user spesifik
+      const { data: user } = await supabase
+        .from('users')
+        .select('fcm_token')
+        .eq('id', target_user_id)
         .maybeSingle()
+      targetToken = user?.fcm_token ?? null
+      targetTable = 'users'
+      targetId = target_user_id
 
-      if (error) throw new Error(`Query admin gagal: ${error.message}`)
-      if (admin) targetTokens = [admin]
+    } else if (target_porter_id) {
+      // Kirim ke porter spesifik
+      const { data: porter } = await supabase
+        .from('porters')
+        .select('fcm_token')
+        .eq('id', target_porter_id)
+        .maybeSingle()
+      targetToken = porter?.fcm_token ?? null
+      targetTable = 'porters'
+      targetId = target_porter_id
+
+    } else if (target_admin_id) {
+      // Mode lama: kirim ke admin spesifik
+      const { data: admin } = await supabase
+        .from('admins')
+        .select('fcm_token')
+        .eq('id', target_admin_id)
+        .maybeSingle()
+      targetToken = admin?.fcm_token ?? null
+      targetTable = 'admins'
+      targetId = target_admin_id
+
     } else {
-      // Mode fallback: kirim ke semua admin (kalau target_admin_id tidak diberikan)
-      const { data: admins, error } = await supabase
+      // Fallback: kirim ke semua admin (mode lama)
+      const { data: admins } = await supabase
         .from('admins')
         .select('id, fcm_token')
         .not('fcm_token', 'is', null)
 
-      if (error) throw new Error(`Query admins gagal: ${error.message}`)
-      targetTokens = admins ?? []
-    }
+      if (!admins || admins.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Tidak ada target dengan FCM token aktif' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
 
-    if (targetTokens.length === 0) {
+      const accessToken = await getGoogleAccessToken(serviceAccount)
+      const results = await Promise.all(
+        admins.map(async (admin) => {
+          const result = await sendToDevice({
+            accessToken, projectId,
+            fcmToken: admin.fcm_token,
+            title, body: notifBody,
+            data: { type: type ?? 'sistem', porter_id: porter_id ?? '', porter_nama: porter_nama ?? '', ...(data ?? {}) },
+          })
+          if (!result.success && result.error === 'UNREGISTERED') {
+            await supabase.from('admins').update({ fcm_token: null }).eq('id', admin.id)
+          }
+          return { admin_id: admin.id, ...result }
+        }),
+      )
+
+      const successCount = results.filter((r) => r.success).length
       return new Response(
-        JSON.stringify({ success: false, message: 'Tidak ada admin dengan FCM token aktif' }),
+        JSON.stringify({ success: true, sent_to: successCount, results }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
-    // ── 4. Ambil Google OAuth2 access token (1x untuk semua) ───────
+    // ── Kirim ke single target ──────────────────────────────────────
+    if (!targetToken) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Target tidak memiliki FCM token' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const accessToken = await getGoogleAccessToken(serviceAccount)
+    const result = await sendToDevice({
+      accessToken, projectId,
+      fcmToken: targetToken,
+      title, body: notifBody,
+      data: { type: type ?? 'sistem', ...(data ?? {}) },
+    })
 
-    // ── 5. Kirim FCM ke masing-masing target ──────────────────────
-    const results = await Promise.all(
-      targetTokens.map(async (admin) => {
-        const result = await sendToDevice({
-          accessToken,
-          projectId,
-          fcmToken: admin.fcm_token,
-          title,
-          body,
-          data: {
-            type: 'verifikasi_porter',
-            porter_id: porter_id ?? '',
-            porter_nama: porter_nama ?? '',
-            ...(data ?? {}),
-          },
-        })
-
-        // Kalau token invalid, bersihkan dari DB
-        if (!result.success && result.error === 'UNREGISTERED') {
-          await supabase
-            .from('admins')
-            .update({ fcm_token: null })
-            .eq('id', admin.id)
-          console.log(`Token admin ${admin.id} dihapus (UNREGISTERED)`)
-        }
-
-        return { admin_id: admin.id, ...result }
-      }),
-    )
-
-    const successCount = results.filter((r) => r.success).length
-    const failCount = results.length - successCount
-
-    console.log(`FCM sent: ${successCount} success, ${failCount} failed`)
+    // Bersihkan token kalau expired
+    if (!result.success && result.error === 'UNREGISTERED' && targetTable && targetId) {
+      await supabase.from(targetTable).update({ fcm_token: null }).eq('id', targetId)
+    }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        sent_to: successCount,
-        failed: failCount,
-        results,
-      }),
+      JSON.stringify({ success: result.success, ...result }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
+
   } catch (err) {
     console.error('Edge Function error:', err)
     return new Response(

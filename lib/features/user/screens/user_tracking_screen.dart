@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -54,6 +55,8 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
   String? _fotoBuktiJemput; // Foto barang saat porter tiba di jemput
 
   late final RealtimeChannel _channel;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
 
   // Urutan status untuk progress indicator
   static const _statusSteps = [
@@ -68,16 +71,24 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
   void initState() {
     super.initState();
     _loadInitialData();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _loadInitialData(showLoading: false),
+    );
     _subscribeRealtime();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _supabase.removeChannel(_channel);
     super.dispose();
   }
 
-  Future<void> _loadInitialData() async {
+  Future<void> _loadInitialData({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+
     try {
       // Data porter (nama, HP, posisi GPS terkini)
       final porterData = await _supabase
@@ -112,12 +123,17 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
           final lng = (porterData['longitude'] as num?)?.toDouble();
           if (lat != null && lng != null && lat != 0 && lng != 0) {
             _porterLatLng = LatLng(lat, lng);
+            if (!showLoading) {
+              _mapController.move(_porterLatLng!, _mapController.camera.zoom);
+            }
           }
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    } finally {
+      _refreshing = false;
     }
   }
 

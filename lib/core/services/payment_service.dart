@@ -8,7 +8,7 @@ class PaymentService {
 
   // Kalau run di HP fisik, ganti IP ini dengan IPv4 laptop lu.
   // Cek di Windows: ipconfig → Wireless LAN adapter Wi-Fi → IPv4 Address
-  static const String _baseUrl = 'http://192.168.1.88:3000';
+  static const String _baseUrl = 'http://192.168.1.8:3000';
 
   Future<PaymentCreateResult?> createPayment({
     required String orderId,

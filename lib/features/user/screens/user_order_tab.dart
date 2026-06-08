@@ -7,9 +7,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../core/services/map_service.dart';
 import '../../../state/providers/auth_provider.dart';
 import 'user_payment_screen.dart';
@@ -45,28 +47,41 @@ class _UserOrderTabState extends State<UserOrderTab> {
   bool _showEstimasi = false;
 
   List<Map<String, dynamic>> _tarifList = [];
+  Timer? _autoRefreshTimer;
+  bool _refreshingTarif = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _loadData(),
+    );
     _getCurrentLocation();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _tujuanCtrl.dispose();
     _catatanCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
+    if (_refreshingTarif) return;
+    _refreshingTarif = true;
+
     try {
       final tarif = await _supabase.from('tarif').select().eq('is_aktif', true);
       if (mounted) {
         setState(() => _tarifList = List<Map<String, dynamic>>.from(tarif));
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _refreshingTarif = false;
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -239,6 +254,15 @@ class _UserOrderTabState extends State<UserOrderTab> {
 
       // 3. Kalau payment sukses, reset form
       if (paymentSuccess == true && mounted) {
+        await _kirimNotifOrderBaruKePorterOnline(
+          orderId: orderId,
+          lokasiJemput: lokasiJemputStr,
+          lokasiTujuan: lokasiTujuanStr,
+          jenisBrg: _jenisBrg,
+        );
+
+        if (!mounted) return;
+
         setState(() {
           _lokasiTujuan = null;
           _tujuanCtrl.clear();
@@ -263,6 +287,38 @@ class _UserOrderTabState extends State<UserOrderTab> {
           backgroundColor: AppColors.error,
         ),
       );
+    }
+  }
+
+  Future<void> _kirimNotifOrderBaruKePorterOnline({
+    required String orderId,
+    required String lokasiJemput,
+    required String lokasiTujuan,
+    required String jenisBrg,
+  }) async {
+    try {
+      final porters = await _supabase
+          .from('porters')
+          .select('id')
+          .eq('is_aktif', true)
+          .eq('status_verifikasi', 'disetujui')
+          .not('fcm_token', 'is', null)
+          .limit(20);
+
+      for (final porter in List<Map<String, dynamic>>.from(porters)) {
+        final porterId = porter['id'] as String?;
+        if (porterId == null) continue;
+
+        await FcmService.instance.sendNewOrderNotifToPorter(
+          targetPorterId: porterId,
+          orderId: orderId,
+          lokasiJemput: lokasiJemput,
+          lokasiTujuan: lokasiTujuan,
+          jenisBrg: jenisBrg,
+        );
+      }
+    } catch (e) {
+      debugPrint('Gagal kirim notif order baru ke porter: $e');
     }
   }
 
