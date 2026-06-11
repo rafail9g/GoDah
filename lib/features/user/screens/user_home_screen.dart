@@ -71,7 +71,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         setState(() => _activeOrderCount = (res as List).length);
       }
     } catch (_) {
-      // Badge hanya pemanis UI; jangan ganggu halaman kalau query gagal.
     } finally {
       _refreshingBadges = false;
     }

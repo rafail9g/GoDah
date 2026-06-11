@@ -47,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passCtrl.text;
 
-    // Coba login admin dulu
     final adminResult = await auth.loginAdmin(email: email, password: password);
     if (!mounted) return;
 
@@ -57,7 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Login user/porter biasa
     final userResult = await auth.login(email: email, password: password);
     if (!mounted) return;
     setState(() => _loading = false);
@@ -79,19 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _googleLoading = true);
 
     try {
-      // Paksa sign out dulu agar user bisa pilih akun
       await _googleSignIn.signOut();
 
-      // Tampilkan dialog pilih akun Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        // User menekan tombol back / cancel
         setState(() => _googleLoading = false);
         return;
       }
 
-      // Ambil token autentikasi (google_sign_in ^6.x)
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
@@ -105,14 +99,11 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // Kirim token ke Supabase
       await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: accessToken,
       );
-
-      // Navigasi otomatis ditangani AuthProvider + GoRouter
     } on Exception catch (e) {
       if (!mounted) return;
       final msg = e.toString().replaceAll('Exception: ', '');
@@ -208,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Masuk untuk lanjut pakai Go-Dah.',
+                              'Masuk untuk lanjut pakai GoDah.',
                               style: AppTextStyles.bodyMd.copyWith(
                                 color: AppColors.grey600,
                               ),
@@ -246,8 +237,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: TextButton(
                                 onPressed: () {},
                                 style: TextButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
@@ -313,8 +305,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 18),
                             OutlinedButton(
-                              onPressed:
-                                  _googleLoading ? null : _loginWithGoogle,
+                              onPressed: _googleLoading
+                                  ? null
+                                  : _loginWithGoogle,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.grey800,
                                 backgroundColor: AppColors.white,
@@ -346,22 +339,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                           height: 20,
                                           errorBuilder: (_, __, ___) =>
                                               const Text(
-                                            'G',
-                                            style: TextStyle(
-                                              color: Color(0xFF4285F4),
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
+                                                'G',
+                                                style: TextStyle(
+                                                  color: Color(0xFF4285F4),
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
                                         ),
                                         const SizedBox(width: 12),
                                         Text(
                                           'Masuk dengan Google',
-                                          style:
-                                              AppTextStyles.buttonMd.copyWith(
-                                            color: AppColors.grey800,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                          style: AppTextStyles.buttonMd
+                                              .copyWith(
+                                                color: AppColors.grey800,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                         ),
                                       ],
                                     ),

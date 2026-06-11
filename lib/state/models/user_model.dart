@@ -1,6 +1,5 @@
 import '../../core/utils/string_utils.dart';
 
-/// Model data user/mahasiswa.
 class UserModel {
   final String id;
   final String nama;
@@ -22,15 +21,12 @@ class UserModel {
     this.createdAt,
   });
 
-  /// Inisial nama untuk avatar.
   String get initials => StringUtils.initials(nama);
 
-  /// Nomor HP yang diformat untuk ditampilkan.
   String get formattedPhone => StringUtils.formatPhoneDisplay(noHp);
 
   bool get isActive => status == 'aktif';
 
-  // ── Serialization ──────────────────────────────────────────────────
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
     id:          json['id'] as String,

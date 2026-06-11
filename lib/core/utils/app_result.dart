@@ -1,14 +1,3 @@
-/// Sealed class untuk merepresentasikan hasil operasi async.
-/// Dipakai di semua layer (repository, provider, UI) agar error handling konsisten.
-///
-/// Contoh penggunaan:
-/// ```dart
-/// final result = await orderRepository.createOrder(data);
-/// result.when(
-///   success: (order) => navigateToTracking(order.id),
-///   failure: (error) => showSnackBar(error.message),
-/// );
-/// ```
 sealed class AppResult<T> {
   const AppResult();
 
@@ -25,7 +14,6 @@ sealed class AppResult<T> {
     Failure<T>(error: final e) => e,
   };
 
-  /// Pattern matching untuk kedua kondisi.
   R when<R>({
     required R Function(T data) success,
     required R Function(AppError error) failure,
@@ -34,7 +22,6 @@ sealed class AppResult<T> {
     Failure<T>(error: final e) => failure(e),
   };
 
-  /// Transformasi data jika sukses.
   AppResult<R> map<R>(R Function(T data) transform) => switch (this) {
     Success<T>(data: final d) => Success(transform(d)),
     Failure<T>(error: final e) => Failure(e),
@@ -57,9 +44,7 @@ final class Failure<T> extends AppResult<T> {
   String toString() => 'Failure(${error.message})';
 }
 
-// ── AppError ────────────────────────────────────────────────────────────────
 
-/// Representasi error yang bisa ditampilkan ke user.
 class AppError {
   final String message;
   final String? code;
@@ -73,7 +58,6 @@ class AppError {
     this.type = AppErrorType.unknown,
   });
 
-  // Factory constructors untuk error umum
   factory AppError.network() => const AppError(
     message: 'Koneksi bermasalah. Periksa internet kamu.',
     type: AppErrorType.network,

@@ -26,7 +26,6 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
 
-      // AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
@@ -48,7 +47,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // ElevatedButton
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -65,7 +63,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // OutlinedButton
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
@@ -81,7 +78,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // TextButton
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.secondary,
@@ -89,7 +85,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // InputDecoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.grey100,
@@ -122,7 +117,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // Card — pakai CardThemeData (Flutter >= 3.22)
       cardTheme: CardThemeData(
         color: AppColors.white,
         elevation: AppDimens.elevationLow,
@@ -132,7 +126,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // BottomNavigationBar
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.white,
         selectedItemColor: AppColors.primary,
@@ -149,7 +142,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // Chip
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.primary50,
         labelStyle: AppTextStyles.labelMd.copyWith(color: AppColors.primary),
@@ -159,14 +151,12 @@ abstract final class AppTheme {
         ),
       ),
 
-      // Divider
       dividerTheme: const DividerThemeData(
         color: AppColors.grey200,
         thickness: AppDimens.dividerThickness,
         space: AppDimens.md,
       ),
 
-      // SnackBar
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.grey900,
         contentTextStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.white),
@@ -176,7 +166,6 @@ abstract final class AppTheme {
         ),
       ),
 
-      // Dialog — pakai DialogThemeData (Flutter >= 3.22)
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.white,
         elevation: AppDimens.elevationHigh,
@@ -187,14 +176,12 @@ abstract final class AppTheme {
         contentTextStyle: AppTextStyles.bodyMd,
       ),
 
-      // FloatingActionButton
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.accent,
         foregroundColor: AppColors.white,
         elevation: AppDimens.elevationMedium,
       ),
 
-      // Progress indicator
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppColors.primary,
         linearTrackColor: AppColors.primary100,

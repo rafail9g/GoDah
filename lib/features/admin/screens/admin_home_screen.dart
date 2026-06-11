@@ -47,7 +47,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Admin Go-Dah', style: TextStyle(fontSize: 16)),
+            const Text('Admin GoDah', style: TextStyle(fontSize: 16)),
             Text(
               admin?.nama.isNotEmpty == true ? admin!.nama : 'Dashboard',
               style: const TextStyle(fontSize: 12, color: AppColors.primary100),
@@ -141,16 +141,16 @@ class _UsersCrudTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const _SimpleAdminTable(
-        title: 'Data User',
-        table: 'users',
-        select: '*',
-        editableFields: ['nama', 'email', 'no_hp', 'alamat', 'status'],
-        requiredFields: ['nama', 'email', 'no_hp'],
-        insertDefaults: {'password_hash': 'admin_created'},
-        titleField: 'nama',
-        subtitleField: 'email',
-        lineFields: ['no_hp', 'alamat', 'status'],
-      );
+    title: 'Data User',
+    table: 'users',
+    select: '*',
+    editableFields: ['nama', 'email', 'no_hp', 'alamat', 'status'],
+    requiredFields: ['nama', 'email', 'no_hp'],
+    insertDefaults: {'password_hash': 'admin_created'},
+    titleField: 'nama',
+    subtitleField: 'email',
+    lineFields: ['no_hp', 'alamat', 'status'],
+  );
 }
 
 class _PortersCrudTab extends StatelessWidget {
@@ -158,21 +158,15 @@ class _PortersCrudTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const _SimpleAdminTable(
-        title: 'Data Porter',
-        table: 'porters',
-        select: '*',
-        editableFields: [
-          'nama',
-          'email',
-          'no_hp',
-          'status_verifikasi',
-          'is_aktif',
-        ],
-        requiredFields: ['nama', 'email', 'no_hp'],
-        titleField: 'nama',
-        subtitleField: 'email',
-        lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
-      );
+    title: 'Data Porter',
+    table: 'porters',
+    select: '*',
+    editableFields: ['nama', 'email', 'no_hp', 'status_verifikasi', 'is_aktif'],
+    requiredFields: ['nama', 'email', 'no_hp'],
+    titleField: 'nama',
+    subtitleField: 'email',
+    lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
+  );
 }
 
 class _OrdersCrudTab extends StatelessWidget {
@@ -180,21 +174,21 @@ class _OrdersCrudTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const _SimpleAdminTable(
-        title: 'Data Order',
-        table: 'orders',
-        select: '*, users(nama), porters(nama)',
-        editableFields: ['status', 'catatan'],
-        titleField: 'jenis_barang',
-        subtitleField: 'status',
-        lineFields: [
-          'users.nama',
-          'porters.nama',
-          'lokasi_jemput',
-          'lokasi_tujuan',
-          'total_biaya',
-        ],
-        allowAdd: false,
-      );
+    title: 'Data Order',
+    table: 'orders',
+    select: '*, users(nama), porters(nama)',
+    editableFields: ['status', 'catatan'],
+    titleField: 'jenis_barang',
+    subtitleField: 'status',
+    lineFields: [
+      'users.nama',
+      'porters.nama',
+      'lokasi_jemput',
+      'lokasi_tujuan',
+      'total_biaya',
+    ],
+    allowAdd: false,
+  );
 }
 
 class _SimpleAdminTable extends StatefulWidget {
@@ -260,8 +254,10 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
       final res = await _supabase
           .from(widget.table)
           .select(widget.select)
-          .order(widget.table == 'orders' ? 'waktu_pesan' : 'created_at',
-              ascending: false);
+          .order(
+            widget.table == 'orders' ? 'waktu_pesan' : 'created_at',
+            ascending: false,
+          );
       if (mounted) setState(() => _data = List<Map<String, dynamic>>.from(res));
     } catch (e) {
       _showSnack('Gagal memuat ${widget.title}: $e', AppColors.error);
@@ -293,7 +289,9 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: TextField(
                       controller: controllers[field],
-                      decoration: InputDecoration(labelText: _fieldLabel(field)),
+                      decoration: InputDecoration(
+                        labelText: _fieldLabel(field),
+                      ),
                     ),
                   ),
                 )
@@ -320,9 +318,7 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
               }
               Navigator.pop(ctx, true);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Simpan'),
           ),
         ],
@@ -364,7 +360,9 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Hapus Data?'),
-        content: Text('Yakin ingin menghapus ${_value(item, widget.titleField)}?'),
+        content: Text(
+          'Yakin ingin menghapus ${_value(item, widget.titleField)}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -391,7 +389,8 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
 
   dynamic _parseFieldValue(String field, String value) {
     final trimmed = value.trim();
-    if (field == 'is_aktif') return trimmed.toLowerCase() == 'true' || trimmed == '1';
+    if (field == 'is_aktif')
+      return trimmed.toLowerCase() == 'true' || trimmed == '1';
     if (trimmed.isEmpty) return null;
     return trimmed;
   }
@@ -412,27 +411,27 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
   }
 
   String _fieldLabel(String field) => switch (field) {
-        'nama' => 'Nama',
-        'email' => 'Email',
-        'no_hp' => 'No. HP',
-        'alamat' => 'Alamat',
-        'status' => 'Status',
-        'status_verifikasi' => 'Status Verifikasi',
-        'is_aktif' => 'Aktif (true/false)',
-        'catatan' => 'Catatan',
-        'users.nama' => 'User',
-        'porters.nama' => 'Porter',
-        'lokasi_jemput' => 'Jemput',
-        'lokasi_tujuan' => 'Tujuan',
-        'total_biaya' => 'Biaya',
-        _ => field,
-      };
+    'nama' => 'Nama',
+    'email' => 'Email',
+    'no_hp' => 'No. HP',
+    'alamat' => 'Alamat',
+    'status' => 'Status',
+    'status_verifikasi' => 'Status Verifikasi',
+    'is_aktif' => 'Aktif (true/false)',
+    'catatan' => 'Catatan',
+    'users.nama' => 'User',
+    'porters.nama' => 'Porter',
+    'lokasi_jemput' => 'Jemput',
+    'lokasi_tujuan' => 'Tujuan',
+    'total_biaya' => 'Biaya',
+    _ => field,
+  };
 
   void _showSnack(String message, Color color) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
   }
 
   @override
@@ -470,7 +469,9 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                   Text(
                     '${widget.title} masih kosong',
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.grey500,
+                    ),
                   ),
                 ],
               )
@@ -563,10 +564,7 @@ class _AdminListHeader extends StatelessWidget {
   final String title;
   final int count;
 
-  const _AdminListHeader({
-    required this.title,
-    required this.count,
-  });
+  const _AdminListHeader({required this.title, required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -599,8 +597,6 @@ class _AdminListHeader extends StatelessWidget {
     );
   }
 }
-
-// ── List verifikasi per status ────────────────────────────────────────────
 
 class _VerifikasiList extends StatefulWidget {
   final String status;
@@ -645,7 +641,6 @@ class _VerifikasiListState extends State<_VerifikasiList>
     }
 
     try {
-      // Join porter_verifikasi dengan porters
       final res = await _supabase
           .from('porter_verifikasi')
           .select('*, porters(id, nama, email, no_hp, foto_profil)')
@@ -681,8 +676,8 @@ class _VerifikasiListState extends State<_VerifikasiList>
               widget.status == 'menunggu'
                   ? Icons.hourglass_empty_rounded
                   : widget.status == 'disetujui'
-                      ? Icons.verified_rounded
-                      : Icons.cancel_rounded,
+                  ? Icons.verified_rounded
+                  : Icons.cancel_rounded,
               size: 56,
               color: AppColors.grey300,
             ),
@@ -723,8 +718,6 @@ class _VerifikasiListState extends State<_VerifikasiList>
   }
 }
 
-// ── Kartu per porter ──────────────────────────────────────────────────────
-
 class _VerifikasiCard extends StatefulWidget {
   final String verifikasiId;
   final String porterId;
@@ -764,22 +757,23 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
       final now = DateTime.now().toIso8601String();
       final admin = context.read<AuthProvider>().currentAdmin;
 
-      // Update tabel porter_verifikasi
-      await _supabase.from('porter_verifikasi').update({
-        'status': 'disetujui',
-        'admin_id': admin?.id,
-        'tanggal_verifikasi': now,
-        'catatan_admin': null,
-      }).eq('id', widget.verifikasiId);
+      await _supabase
+          .from('porter_verifikasi')
+          .update({
+            'status': 'disetujui',
+            'admin_id': admin?.id,
+            'tanggal_verifikasi': now,
+            'catatan_admin': null,
+          })
+          .eq('id', widget.verifikasiId);
 
-      // Update tabel porters
-      await _supabase.from('porters').update({
-        'status_verifikasi': 'disetujui',
-        'is_aktif': true,
-      }).eq('id', widget.porterId);
+      await _supabase
+          .from('porters')
+          .update({'status_verifikasi': 'disetujui', 'is_aktif': true})
+          .eq('id', widget.porterId);
 
       if (!mounted) return;
-      _showSnack('✅ ${widget.nama} berhasil diverifikasi', AppColors.success);
+      _showSnack('${widget.nama} berhasil diverifikasi', AppColors.success);
       widget.onRefresh();
     } catch (e) {
       if (!mounted) return;
@@ -790,7 +784,6 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
   }
 
   Future<void> _tolak() async {
-    // Minta alasan penolakan
     final catatanCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -809,7 +802,8 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
               controller: catatanCtrl,
               maxLines: 3,
               decoration: const InputDecoration(
-                hintText: 'Contoh: Foto dokumen tidak jelas, mohon upload ulang',
+                hintText:
+                    'Contoh: Foto dokumen tidak jelas, mohon upload ulang',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -822,9 +816,7 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Tolak'),
           ),
         ],
@@ -838,22 +830,25 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
       final now = DateTime.now().toIso8601String();
       final admin = context.read<AuthProvider>().currentAdmin;
 
-      await _supabase.from('porter_verifikasi').update({
-        'status': 'ditolak',
-        'admin_id': admin?.id,
-        'tanggal_verifikasi': now,
-        'catatan_admin': catatanCtrl.text.trim().isEmpty
-            ? 'Dokumen ditolak oleh admin.'
-            : catatanCtrl.text.trim(),
-      }).eq('id', widget.verifikasiId);
+      await _supabase
+          .from('porter_verifikasi')
+          .update({
+            'status': 'ditolak',
+            'admin_id': admin?.id,
+            'tanggal_verifikasi': now,
+            'catatan_admin': catatanCtrl.text.trim().isEmpty
+                ? 'Dokumen ditolak oleh admin.'
+                : catatanCtrl.text.trim(),
+          })
+          .eq('id', widget.verifikasiId);
 
-      await _supabase.from('porters').update({
-        'status_verifikasi': 'ditolak',
-        'is_aktif': false,
-      }).eq('id', widget.porterId);
+      await _supabase
+          .from('porters')
+          .update({'status_verifikasi': 'ditolak', 'is_aktif': false})
+          .eq('id', widget.porterId);
 
       if (!mounted) return;
-      _showSnack('❌ ${widget.nama} ditolak', AppColors.warning);
+      _showSnack('${widget.nama} ditolak', AppColors.warning);
       widget.onRefresh();
     } catch (e) {
       if (!mounted) return;
@@ -864,9 +859,9 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
   }
 
   void _showSnack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   void _lihatDokumen() {
@@ -898,8 +893,11 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
                       ),
                 errorBuilder: (_, __, ___) => const Padding(
                   padding: EdgeInsets.all(32),
-                  child: Icon(Icons.broken_image_rounded,
-                      size: 64, color: AppColors.grey400),
+                  child: Icon(
+                    Icons.broken_image_rounded,
+                    size: 64,
+                    color: AppColors.grey400,
+                  ),
                 ),
               ),
             ),
@@ -911,11 +909,11 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Format tanggal
     String tanggal = '-';
     try {
       final dt = DateTime.parse(widget.createdAt).toLocal();
-      tanggal = '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+      tanggal =
+          '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {}
 
     return Card(
@@ -931,16 +929,13 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: avatar + nama
             Row(
               children: [
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: AppColors.primary100,
                   child: Text(
-                    widget.nama.isNotEmpty
-                        ? widget.nama[0].toUpperCase()
-                        : '?',
+                    widget.nama.isNotEmpty ? widget.nama[0].toUpperCase() : '?',
                     style: AppTextStyles.h3.copyWith(color: AppColors.primary),
                   ),
                 ),
@@ -952,8 +947,9 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
                       Text(widget.nama, style: AppTextStyles.h4),
                       Text(
                         widget.email,
-                        style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.grey500),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.grey500,
+                        ),
                       ),
                     ],
                   ),
@@ -965,14 +961,13 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
             const Divider(),
             const SizedBox(height: 8),
 
-            // Info
             _InfoRow(icon: Icons.phone_outlined, text: widget.noHp),
             const SizedBox(height: 4),
             _InfoRow(
-                icon: Icons.calendar_today_outlined,
-                text: 'Daftar: $tanggal'),
+              icon: Icons.calendar_today_outlined,
+              text: 'Daftar: $tanggal',
+            ),
 
-            // Catatan admin jika ada
             if (widget.catatanAdmin != null &&
                 widget.catatanAdmin!.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -984,14 +979,18 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.comment_outlined,
-                        size: 16, color: AppColors.error),
+                    const Icon(
+                      Icons.comment_outlined,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.catatanAdmin!,
-                        style: AppTextStyles.bodySm
-                            .copyWith(color: AppColors.error),
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.error,
+                        ),
                       ),
                     ),
                   ],
@@ -1001,10 +1000,8 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
 
             const SizedBox(height: 12),
 
-            // Tombol lihat dokumen
             OutlinedButton.icon(
-              onPressed:
-                  widget.dokumenUrl.isNotEmpty ? _lihatDokumen : null,
+              onPressed: widget.dokumenUrl.isNotEmpty ? _lihatDokumen : null,
               icon: const Icon(Icons.image_search_rounded, size: 18),
               label: const Text('Lihat Dokumen'),
               style: OutlinedButton.styleFrom(
@@ -1012,7 +1009,6 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
               ),
             ),
 
-            // Tombol approve/tolak hanya untuk yang menunggu
             if (widget.status == 'menunggu') ...[
               const SizedBox(height: 10),
               Row(
@@ -1031,8 +1027,11 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
                                 color: AppColors.error,
                               ),
                             )
-                          : const Icon(Icons.close_rounded,
-                              size: 18, color: AppColors.error),
+                          : const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: AppColors.error,
+                            ),
                       label: Text(
                         'Tolak',
                         style: TextStyle(color: AppColors.error),
@@ -1095,10 +1094,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppDimens.radiusRound),
         border: Border.all(color: color.withOpacity(0.4)),
       ),
-      child: Text(
-        label,
-        style: AppTextStyles.labelSm.copyWith(color: color),
-      ),
+      child: Text(label, style: AppTextStyles.labelSm.copyWith(color: color)),
     );
   }
 }

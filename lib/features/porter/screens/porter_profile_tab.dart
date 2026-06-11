@@ -57,10 +57,7 @@ class PorterProfileTab extends StatelessWidget {
                 return;
               }
 
-              Navigator.pop(ctx, {
-                'nama': namaCtrl.text,
-                'noHp': hpCtrl.text,
-              });
+              Navigator.pop(ctx, {'nama': namaCtrl.text, 'noHp': hpCtrl.text});
             },
             child: const Text('Simpan'),
           ),
@@ -122,7 +119,6 @@ class PorterProfileTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Profile Block
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -187,7 +183,6 @@ class PorterProfileTab extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Info
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -204,25 +199,27 @@ class PorterProfileTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _InfoCard(children: [
-                    _InfoRow(
-                      icon: Icons.phone_android_rounded,
-                      label: 'No. HP',
-                      value: porter?.noHp ?? '-',
-                    ),
-                    const Divider(height: 1),
-                    _InfoRow(
-                      icon: Icons.check_circle_outline_rounded,
-                      label: 'Total Selesai',
-                      value: '${porter?.totalSelesai ?? 0} order',
-                    ),
-                    const Divider(height: 1),
-                    _InfoRow(
-                      icon: Icons.badge_outlined,
-                      label: 'Status Akun',
-                      value: _verifLabel(porter?.statusVerifikasi ?? ''),
-                    ),
-                  ]),
+                  _InfoCard(
+                    children: [
+                      _InfoRow(
+                        icon: Icons.phone_android_rounded,
+                        label: 'No. HP',
+                        value: porter?.noHp ?? '-',
+                      ),
+                      const Divider(height: 1),
+                      _InfoRow(
+                        icon: Icons.check_circle_outline_rounded,
+                        label: 'Total Selesai',
+                        value: '${porter?.totalSelesai ?? 0} order',
+                      ),
+                      const Divider(height: 1),
+                      _InfoRow(
+                        icon: Icons.badge_outlined,
+                        label: 'Status Akun',
+                        value: _verifLabel(porter?.statusVerifikasi ?? ''),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
 
                   Padding(
@@ -236,45 +233,46 @@ class PorterProfileTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _InfoCard(children: [
-                    _MenuRow(
-                      icon: Icons.edit_rounded,
-                      label: 'Edit Profil',
-                      onTap: () => _showEditProfileDialog(context),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.upload_file_rounded,
-                      label: 'Verifikasi Dokumen',
-                      onTap: () => context.push('/porter/verification'),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.support_agent_rounded,
-                      label: 'Call Center',
-                      onTap: () => CallService.callPhone(
-                        context,
-                        _callCenterPhone,
-                        targetLabel: 'call center',
+                  _InfoCard(
+                    children: [
+                      _MenuRow(
+                        icon: Icons.edit_rounded,
+                        label: 'Edit Profil',
+                        onTap: () => _showEditProfileDialog(context),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.logout_rounded,
-                      label: 'Keluar dari Akun',
-                      color: AppColors.error,
-                      onTap: () async {
-                        await auth.logout();
-                        if (context.mounted) context.go('/login');
-                      },
-                    ),
-                  ]),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.upload_file_rounded,
+                        label: 'Verifikasi Dokumen',
+                        onTap: () => context.push('/porter/verification'),
+                      ),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.support_agent_rounded,
+                        label: 'Call Center',
+                        onTap: () => CallService.callPhone(
+                          context,
+                          _callCenterPhone,
+                          targetLabel: 'call center',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.logout_rounded,
+                        label: 'Keluar dari Akun',
+                        color: AppColors.error,
+                        onTap: () async {
+                          await auth.logout();
+                          if (context.mounted) context.go('/login');
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 32),
 
-                  // App version
                   Center(
                     child: Text(
-                      'Go-Dah Porter v1.0.0\nJasa Angkut Barang Mahasiswa',
+                      'GoDah Porter v1.0.0\nJasa Angkut Barang Mahasiswa',
                       style: AppTextStyles.caption.copyWith(height: 1.4),
                       textAlign: TextAlign.center,
                     ),
@@ -303,9 +301,17 @@ class _VerifBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, label, icon) = switch (status) {
-      'disetujui' => (AppColors.success, 'Terverifikasi', Icons.verified_rounded),
+      'disetujui' => (
+        AppColors.success,
+        'Terverifikasi',
+        Icons.verified_rounded,
+      ),
       'ditolak' => (AppColors.error, 'Ditolak', Icons.cancel_rounded),
-      _ => (AppColors.warning, 'Menunggu Verifikasi', Icons.hourglass_top_rounded),
+      _ => (
+        AppColors.warning,
+        'Menunggu Verifikasi',
+        Icons.hourglass_top_rounded,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -354,7 +360,11 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +376,10 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 12),
           Text(label, style: AppTextStyles.labelLg),
           const Spacer(),
-          Text(value, style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey600)),
+          Text(
+            value,
+            style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey600),
+          ),
         ],
       ),
     );
@@ -399,7 +412,11 @@ class _MenuRow extends StatelessWidget {
             const SizedBox(width: 12),
             Text(label, style: AppTextStyles.labelLg.copyWith(color: color)),
             const Spacer(),
-            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.grey400),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppColors.grey400,
+            ),
           ],
         ),
       ),

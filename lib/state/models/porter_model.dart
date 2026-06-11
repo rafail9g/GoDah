@@ -4,7 +4,7 @@ class PorterModel {
   final String email;
   final String noHp;
   final String? fotoProfil;
-  final String statusVerifikasi; // 'menunggu' | 'disetujui' | 'ditolak'
+  final String statusVerifikasi;
   final bool isAktif;
   final double? latitude;
   final double? longitude;

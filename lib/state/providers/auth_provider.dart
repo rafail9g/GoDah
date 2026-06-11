@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +11,7 @@ final _supabase = Supabase.instance.client;
 
 class AuthProvider extends ChangeNotifier {
   static const _adminSessionKey = 'godah_admin_id';
+  static const _minimumSplashDuration = Duration(seconds: 3);
 
   UserModel? _currentUser;
   PorterModel? _currentPorter;
@@ -40,13 +40,8 @@ class AuthProvider extends ChangeNotifier {
       _currentAdmin == null &&
       _role == null;
 
-  void _notifyNextFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      notifyListeners();
-    });
-  }
-
   Future<void> init() async {
+    final splashStartedAt = DateTime.now();
     _isLoading = true;
     notifyListeners();
 
@@ -58,6 +53,11 @@ class AuthProvider extends ChangeNotifier {
         await _restoreAdminSession();
       }
     } catch (_) {}
+
+    final splashElapsed = DateTime.now().difference(splashStartedAt);
+    if (splashElapsed < _minimumSplashDuration) {
+      await Future.delayed(_minimumSplashDuration - splashElapsed);
+    }
 
     _isLoading = false;
     notifyListeners();
@@ -139,8 +139,11 @@ class AuthProvider extends ChangeNotifier {
     if (adminId == null || adminId.isEmpty) return;
 
     try {
-      final res =
-          await _supabase.from('admins').select().eq('id', adminId).maybeSingle();
+      final res = await _supabase
+          .from('admins')
+          .select()
+          .eq('id', adminId)
+          .maybeSingle();
       if (res == null) {
         await prefs.remove(_adminSessionKey);
         return;
@@ -474,11 +477,14 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      await _supabase.from('users').update({
-        'nama': nama.trim(),
-        'no_hp': noHp.trim(),
-        'alamat': alamat?.trim(),
-      }).eq('id', user.id);
+      await _supabase
+          .from('users')
+          .update({
+            'nama': nama.trim(),
+            'no_hp': noHp.trim(),
+            'alamat': alamat?.trim(),
+          })
+          .eq('id', user.id);
 
       await _loadProfile(user.id);
       notifyListeners();
@@ -499,10 +505,10 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      await _supabase.from('porters').update({
-        'nama': nama.trim(),
-        'no_hp': noHp.trim(),
-      }).eq('id', porter.id);
+      await _supabase
+          .from('porters')
+          .update({'nama': nama.trim(), 'no_hp': noHp.trim()})
+          .eq('id', porter.id);
 
       await _loadProfile(porter.id);
       notifyListeners();

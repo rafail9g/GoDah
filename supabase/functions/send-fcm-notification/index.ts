@@ -11,7 +11,7 @@ async function getGoogleAccessToken(serviceAccount: Record<string, string>): Pro
   const now = Math.floor(Date.now() / 1000)
 
   const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\
 
   const payload = btoa(JSON.stringify({
     iss: serviceAccount.client_email,
@@ -19,7 +19,7 @@ async function getGoogleAccessToken(serviceAccount: Record<string, string>): Pro
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600,
-  })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  })).replace(/=/g, '').replace(/\+/g, '-').replace(/\
 
   const signingInput = `${header}.${payload}`
 
@@ -42,7 +42,7 @@ async function getGoogleAccessToken(serviceAccount: Record<string, string>): Pro
   )
 
   const signature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\
 
   const jwt = `${signingInput}.${signature}`
 
@@ -134,17 +134,15 @@ serve(async (req: Request) => {
   try {
     const body = await req.json()
     const {
-      // Mode lama (verifikasi porter ke admin)
       target_admin_id,
       porter_nama,
       porter_id,
-      // Mode baru (order notifications)
-      target_user_id,    // kirim ke user spesifik
-      target_porter_id,  // kirim ke porter spesifik
+      target_user_id,
+      target_porter_id,
       title,
       body: notifBody,
       data,
-      type,              // tipe notif: 'order_new', 'order_accepted', dll
+      type,
     } = body
 
     if (!title || !notifBody) {
@@ -166,13 +164,11 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ── Tentukan target token berdasarkan parameter ─────────────────
     let targetToken: string | null = null
     let targetTable: string | null = null
     let targetId: string | null = null
 
     if (target_user_id) {
-      // Kirim ke user spesifik
       const { data: user } = await supabase
         .from('users')
         .select('fcm_token')
@@ -183,7 +179,6 @@ serve(async (req: Request) => {
       targetId = target_user_id
 
     } else if (target_porter_id) {
-      // Kirim ke porter spesifik
       const { data: porter } = await supabase
         .from('porters')
         .select('fcm_token')
@@ -194,7 +189,6 @@ serve(async (req: Request) => {
       targetId = target_porter_id
 
     } else if (target_admin_id) {
-      // Mode lama: kirim ke admin spesifik
       const { data: admin } = await supabase
         .from('admins')
         .select('fcm_token')
@@ -205,7 +199,6 @@ serve(async (req: Request) => {
       targetId = target_admin_id
 
     } else {
-      // Fallback: kirim ke semua admin (mode lama)
       const { data: admins } = await supabase
         .from('admins')
         .select('id, fcm_token')
@@ -241,7 +234,6 @@ serve(async (req: Request) => {
       )
     }
 
-    // ── Kirim ke single target ──────────────────────────────────────
     if (!targetToken) {
       return new Response(
         JSON.stringify({ success: false, message: 'Target tidak memiliki FCM token' }),
@@ -257,7 +249,6 @@ serve(async (req: Request) => {
       data: { type: type ?? 'sistem', ...(data ?? {}) },
     })
 
-    // Bersihkan token kalau expired
     if (!result.success && result.error === 'UNREGISTERED' && targetTable && targetId) {
       await supabase.from(targetTable).update({ fcm_token: null }).eq('id', targetId)
     }

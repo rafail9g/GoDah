@@ -1,10 +1,3 @@
-// lib/features/porter/screens/porter_dashboard_tab.dart
-// CHANGES:
-// 1. Accept order: ATOMIC (race-condition safe) - porter pertama yang klik menang
-// 2. Setelah accept: porter langsung lihat map ke lokasi jemput
-// 3. Available orders: TANPA map preview (map muncul hanya setelah terima)
-// 4. Foto WAJIB saat tiba di lokasi jemput (bukan cuma saat selesai)
-// 5. GPS stream update real-time (user bisa lacak porter)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -43,10 +36,8 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   int _selesaiHariIni = 0;
   double _avgRating = 0;
 
-  // Track order mana yang sedang dalam proses accept (prevent double tap)
   String? _acceptingOrderId;
 
-  // GPS Stream state
   Stream<Position>? _locationStream;
   StreamSubscription<Position>? _locationSubscription;
   Position? _currentPosition;
@@ -86,7 +77,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       if (!mounted) return;
       setState(() => _currentPosition = position);
 
-      // Update koordinat porter ke DB agar user bisa tracking real-time
       final auth = context.read<AuthProvider>();
       final porter = auth.currentPorter;
       if (porter != null && _isOnline) {
@@ -121,7 +111,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           .single();
       _isOnline = porterData['is_aktif'] as bool? ?? false;
 
-      // Hanya tampilkan order yang BELUM ada porter (porter_id IS NULL)
       final available = await _supabase
           .from('orders')
           .select('*, users(nama, no_hp)')
@@ -223,8 +212,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
   }
 
-  // ── ACCEPT ORDER: ATOMIC — Porter pertama yang klik, dia yang dapat ──────
-  // Tidak perlu foto dulu. Foto wajib saat tiba di lokasi jemput.
   Future<void> _acceptOrder(String orderId) async {
     final auth = context.read<AuthProvider>();
     final porter = auth.currentPorter;
@@ -233,8 +220,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     setState(() => _acceptingOrderId = orderId);
 
     try {
-      // STEP 1: Update DENGAN kondisi — hanya jika status masih 'menunggu'
-      // DAN porter_id masih null. Ini mencegah race condition.
       await _supabase
           .from('orders')
           .update({'porter_id': porter.id, 'status': 'diterima'})
@@ -242,7 +227,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           .eq('status', 'menunggu')
           .isFilter('porter_id', null);
 
-      // STEP 2: Verifikasi apakah kita yang berhasil mendapatkan order
       final verify = await _supabase
           .from('orders')
           .select('porter_id, status, user_id')
@@ -250,23 +234,21 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           .single();
 
       if (verify['porter_id'] != porter.id) {
-        // Porter lain lebih cepat klik!
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                '⚡ Order sudah diambil porter lain!\nCoba cari order lain.',
+                'Order sudah diambil porter lain!\nCoba cari order lain.',
               ),
               backgroundColor: AppColors.warning,
               duration: Duration(seconds: 3),
             ),
           );
         }
-        _load(); // Refresh list
+        _load();
         return;
       }
 
-      // STEP 3: Kita berhasil! Simpan tracking awal
       await _supabase.from('order_tracking').insert({
         'order_id': orderId,
         'status_perjalanan': 'diterima',
@@ -286,7 +268,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '✅ Order berhasil diterima!\nSegera menuju lokasi penjemputan.',
+              'Order berhasil diterima!\nSegera menuju lokasi penjemputan.',
             ),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 3),
@@ -308,31 +290,27 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
   }
 
-  // ── UPDATE STATUS dengan routing foto yang benar ──────────────────────
   Future<void> _updateOrderStatus(String orderId, String currentStatus) async {
     final Map<String, String> nextStatus = {
       'diterima': 'menuju_lokasi',
-      'menuju_lokasi': 'dalam_perjalanan', // ← WAJIB foto barang di jemput
+      'menuju_lokasi': 'dalam_perjalanan',
       'dalam_perjalanan': 'sampai_tujuan',
-      'sampai_tujuan': 'selesai', // ← WAJIB foto bukti pengiriman
+      'sampai_tujuan': 'selesai',
     };
 
     final next = nextStatus[currentStatus];
     if (next == null) return;
 
-    // Foto WAJIB saat tiba di lokasi jemput (sebelum angkat barang)
     if (next == 'dalam_perjalanan') {
       await _fotoTibaLokasi(orderId);
       return;
     }
 
-    // Foto WAJIB saat selesai mengantarkan barang
     if (next == 'selesai') {
       await _selesaikanDenganFoto(orderId);
       return;
     }
 
-    // Status lain: langsung update tanpa foto
     try {
       await _supabase.from('orders').update({'status': next}).eq('id', orderId);
 
@@ -373,7 +351,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
   }
 
-  // ── FOTO WAJIB: Tiba di lokasi jemput → foto barang sebelum diangkut ──
   Future<void> _fotoTibaLokasi(String orderId) async {
     final foto = await _ambilFoto(title: 'Foto Barang di Lokasi Penjemputan');
     if (foto == null) {
@@ -381,7 +358,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '📸 Foto barang di lokasi jemput WAJIB sebelum mengangkut!',
+              'Foto barang di lokasi jemput WAJIB sebelum mengangkut!',
             ),
             backgroundColor: AppColors.warning,
           ),
@@ -390,7 +367,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       return;
     }
 
-    // Konfirmasi
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -464,7 +440,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         porterNama: order?['porter_nama'] as String?,
       );
 
-      // Simpan foto jemput di tabel bukti_pengiriman dengan flag 'jemput'
       final auth = context.read<AuthProvider>();
       await _supabase.from('bukti_pengiriman').upsert({
         'order_id': orderId,
@@ -477,7 +452,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('📸 Foto tersimpan! Barang siap diantar ke tujuan.'),
+            content: Text('Foto tersimpan! Barang siap diantar ke tujuan.'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -495,7 +470,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
     }
   }
 
-  // ── FOTO WAJIB: Bukti pengiriman selesai ─────────────────────────────
   Future<void> _selesaikanDenganFoto(String orderId) async {
     final foto = await _ambilFoto(title: 'Foto Bukti Barang Sudah Sampai');
     if (foto == null) {
@@ -503,7 +477,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '📸 Foto bukti pengiriman WAJIB untuk menyelesaikan order!',
+              'Foto bukti pengiriman WAJIB untuk menyelesaikan order!',
             ),
             backgroundColor: AppColors.warning,
           ),
@@ -604,7 +578,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '🎉 Order selesai! Terima kasih sudah bekerja keras.',
+              'Order selesai! Terima kasih sudah bekerja keras.',
             ),
             backgroundColor: AppColors.success,
           ),
@@ -749,7 +723,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Halo, ${porter?.nama ?? 'Porter'}! 👋',
+                                    'Halo, ${porter?.nama ?? 'Porter'}! ',
                                     style: AppTextStyles.h4.copyWith(
                                       color: AppColors.white,
                                       fontWeight: FontWeight.bold,
@@ -757,7 +731,7 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                                   ),
                                   if (_currentPosition != null)
                                     Text(
-                                      '📍 GPS aktif — posisi terkirim ke user',
+                                      'GPS aktif — posisi terkirim ke user',
                                       style: AppTextStyles.caption.copyWith(
                                         color: AppColors.white.withOpacity(0.7),
                                       ),
@@ -808,7 +782,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                     const SizedBox(height: 20),
                   ],
 
-                  // ── ORDER AKTIF: Tampilkan map real-time GPS tracking ──
                   if (_myActiveOrders.isNotEmpty) ...[
                     _SectionHeader(
                       title: 'Order Aktifmu (${_myActiveOrders.length})',
@@ -829,7 +802,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
                     const SizedBox(height: 20),
                   ],
 
-                  // ── AVAILABLE ORDERS: Tanpa map, cukup detail order ──
                   _SectionHeader(
                     title: _isOnline
                         ? 'Order Tersedia (${_availableOrders.length})'
@@ -864,9 +836,6 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTIVE ORDER CARD — dengan map real-time GPS porter
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ActiveOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
@@ -880,10 +849,10 @@ class _ActiveOrderCard extends StatelessWidget {
   });
 
   String _nextLabel(String s) => switch (s) {
-    'diterima' => '🚶 Mulai Menuju Lokasi Jemput',
-    'menuju_lokasi' => '📸 Tiba di Jemput — Foto Barang',
-    'dalam_perjalanan' => '📍 Konfirmasi Sampai Tujuan',
-    'sampai_tujuan' => '📸 Selesai + Foto Bukti Kirim',
+    'diterima' => 'Mulai Menuju Lokasi Jemput',
+    'menuju_lokasi' => 'Tiba di Jemput — Foto Barang',
+    'dalam_perjalanan' => 'Konfirmasi Sampai Tujuan',
+    'sampai_tujuan' => 'Selesai + Foto Bukti Kirim',
     _ => '',
   };
 
@@ -929,7 +898,6 @@ class _ActiveOrderCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── MAP real-time: Porter lihat posisinya sendiri + rute ──────
           if (latJemput != 0 && lngJemput != 0)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
@@ -953,7 +921,6 @@ class _ActiveOrderCard extends StatelessWidget {
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.go_dah',
                     ),
-                    // Garis rute
                     if (latTujuan != 0)
                       PolylineLayer(
                         polylines: [
@@ -973,7 +940,6 @@ class _ActiveOrderCard extends StatelessWidget {
                                   currentPosition!.latitude,
                                   currentPosition!.longitude,
                                 ),
-                                // Garis dari posisi porter ke tujuan relevan
                                 status == 'dalam_perjalanan' ||
                                         status == 'sampai_tujuan'
                                     ? LatLng(latTujuan, lngTujuan)
@@ -986,7 +952,6 @@ class _ActiveOrderCard extends StatelessWidget {
                       ),
                     MarkerLayer(
                       markers: [
-                        // Lokasi jemput (hijau)
                         Marker(
                           point: LatLng(latJemput, lngJemput),
                           width: 36,
@@ -997,7 +962,6 @@ class _ActiveOrderCard extends StatelessWidget {
                             size: 30,
                           ),
                         ),
-                        // Lokasi tujuan (merah)
                         if (latTujuan != 0)
                           Marker(
                             point: LatLng(latTujuan, lngTujuan),
@@ -1009,7 +973,6 @@ class _ActiveOrderCard extends StatelessWidget {
                               size: 30,
                             ),
                           ),
-                        // Posisi porter saat ini (biru bergerak)
                         if (currentPosition != null)
                           Marker(
                             point: LatLng(
@@ -1055,7 +1018,6 @@ class _ActiveOrderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Status badge + nama user
                 Row(
                   children: [
                     Container(
@@ -1095,7 +1057,6 @@ class _ActiveOrderCard extends StatelessWidget {
                   ],
                 ),
 
-                // Info hint untuk porter
                 if (_statusInfo(status).isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -1196,9 +1157,6 @@ class _ActiveOrderCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AVAILABLE ORDER CARD — TANPA map, hanya info order. Map muncul setelah terima.
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _AvailableOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
@@ -1237,7 +1195,6 @@ class _AvailableOrderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: layanan + harga
             Row(
               children: [
                 Container(
@@ -1252,7 +1209,7 @@ class _AvailableOrderCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    layanan == 'instant' ? '⚡ Instan' : '📅 Terjadwal',
+                    layanan == 'instant' ? 'Instan' : 'Terjadwal',
                     style: AppTextStyles.labelSm.copyWith(
                       color: layanan == 'instant'
                           ? const Color(0xFFF2994A)
@@ -1273,7 +1230,6 @@ class _AvailableOrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // Rute: jemput → tujuan
             _LokasiItem(
               icon: Icons.radio_button_checked_rounded,
               color: AppColors.success,
@@ -1292,7 +1248,6 @@ class _AvailableOrderCard extends StatelessWidget {
             ),
             const Divider(height: 20),
 
-            // Chips: jenis barang, berat, user
             Wrap(
               spacing: 8,
               runSpacing: 6,
@@ -1308,7 +1263,6 @@ class _AvailableOrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // Info: peta tersedia setelah terima
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -1336,7 +1290,6 @@ class _AvailableOrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // Tombol terima — PERTAMA yang klik yang menang!
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1410,9 +1363,6 @@ class _AvailableOrderCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHARED WIDGETS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _OnlineToggleCard extends StatelessWidget {
   final bool isOnline;

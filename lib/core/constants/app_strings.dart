@@ -1,9 +1,7 @@
 abstract final class AppStrings {
-  // App info
-  static const String appName = 'Go-Dah';
+  static const String appName = 'GoDah';
   static const String appTagline = 'Jasa angkut barang untuk mahasiswa';
 
-  // Auth
   static const String login = 'Masuk';
   static const String register = 'Daftar';
   static const String logout = 'Keluar';
@@ -13,7 +11,6 @@ abstract final class AppStrings {
   static const String noAccount = 'Belum punya akun?';
   static const String hasAccount = 'Sudah punya akun?';
 
-  // Order
   static const String orderNow = 'Pesan Sekarang';
   static const String orderHistory = 'Riwayat Pesanan';
   static const String orderDetail = 'Detail Pesanan';
@@ -27,7 +24,6 @@ abstract final class AppStrings {
   static const String totalCost = 'Total Biaya';
   static const String notes = 'Catatan untuk Porter';
 
-  // Order status
   static const String statusMenunggu = 'Menunggu Porter';
   static const String statusDiterima = 'Diterima';
   static const String statusMenujuLokasi = 'Menuju Lokasi';
@@ -36,14 +32,12 @@ abstract final class AppStrings {
   static const String statusSelesai = 'Selesai';
   static const String statusBatal = 'Dibatalkan';
 
-  // Porter
   static const String porter = 'Porter';
   static const String porterProfile = 'Profil Porter';
   static const String trackPorter = 'Lacak Porter';
   static const String rating = 'Penilaian';
   static const String review = 'Ulasan';
 
-  // General UI
   static const String save = 'Simpan';
   static const String cancel = 'Batal';
   static const String confirm = 'Konfirmasi';
@@ -57,7 +51,6 @@ abstract final class AppStrings {
   static const String loading = 'Memuat...';
   static const String noData = 'Tidak ada data';
 
-  // Error messages
   static const String errorGeneral = 'Terjadi kesalahan. Coba lagi.';
   static const String errorNetwork =
       'Koneksi bermasalah. Periksa internet kamu.';
@@ -66,14 +59,12 @@ abstract final class AppStrings {
   static const String errorServer =
       'Server sedang bermasalah. Coba beberapa saat lagi.';
 
-  // Validation
   static const String validRequired = 'Wajib diisi';
   static const String validEmail = 'Format email tidak valid';
   static const String validPhone = 'Nomor HP tidak valid';
   static const String validPasswordMin = 'Minimal 8 karakter';
   static const String validPasswordMatch = 'Kata sandi tidak cocok';
 
-  // Empty state
   static const String emptyOrder = 'Belum ada pesanan';
   static const String emptyNotif = 'Tidak ada notifikasi';
   static const String emptyHistory = 'Riwayat masih kosong';

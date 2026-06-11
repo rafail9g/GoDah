@@ -137,7 +137,9 @@ class UserProfileTab extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               try {
-                await Supabase.instance.client.auth.resetPasswordForEmail(email);
+                await Supabase.instance.client.auth.resetPasswordForEmail(
+                  email,
+                );
                 if (ctx.mounted) Navigator.pop(ctx, true);
               } catch (e) {
                 if (!ctx.mounted) return;
@@ -201,7 +203,6 @@ class UserProfileTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Profile Block
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -259,7 +260,10 @@ class UserProfileTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white24,
                       borderRadius: BorderRadius.circular(20),
@@ -267,7 +271,11 @@ class UserProfileTab extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.school_rounded, size: 14, color: AppColors.white),
+                        const Icon(
+                          Icons.school_rounded,
+                          size: 14,
+                          color: AppColors.white,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Mahasiswa',
@@ -284,7 +292,6 @@ class UserProfileTab extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Info card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -301,26 +308,30 @@ class UserProfileTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _InfoCard(children: [
-                    _InfoRow(
-                      icon: Icons.phone_android_rounded,
-                      label: 'No. HP',
-                      value: user?.formattedPhone ?? '-',
-                    ),
-                    const Divider(height: 1),
-                    _InfoRow(
-                      icon: Icons.location_on_rounded,
-                      label: 'Alamat Kos/Gedung',
-                      value: user?.alamat ?? 'Belum diisi',
-                    ),
-                    const Divider(height: 1),
-                    _InfoRow(
-                      icon: Icons.shield_rounded,
-                      label: 'Status Akun',
-                      value: user?.isActive == true ? 'Aktif' : 'Nonaktif',
-                      valueColor: user?.isActive == true ? AppColors.success : AppColors.error,
-                    ),
-                  ]),
+                  _InfoCard(
+                    children: [
+                      _InfoRow(
+                        icon: Icons.phone_android_rounded,
+                        label: 'No. HP',
+                        value: user?.formattedPhone ?? '-',
+                      ),
+                      const Divider(height: 1),
+                      _InfoRow(
+                        icon: Icons.location_on_rounded,
+                        label: 'Alamat Kos/Gedung',
+                        value: user?.alamat ?? 'Belum diisi',
+                      ),
+                      const Divider(height: 1),
+                      _InfoRow(
+                        icon: Icons.shield_rounded,
+                        label: 'Status Akun',
+                        value: user?.isActive == true ? 'Aktif' : 'Nonaktif',
+                        valueColor: user?.isActive == true
+                            ? AppColors.success
+                            : AppColors.error,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
 
                   Padding(
@@ -334,55 +345,56 @@ class UserProfileTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _InfoCard(children: [
-                    _MenuRow(
-                      icon: Icons.edit_rounded,
-                      label: 'Edit Profil',
-                      onTap: () => _showEditProfileDialog(context),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.lock_rounded,
-                      label: 'Ganti Password',
-                      onTap: () => _showChangePasswordDialog(context),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.support_agent_rounded,
-                      label: 'Call Center Barang Hilang',
-                      onTap: () => CallService.callPhone(
-                        context,
-                        _callCenterPhone,
-                        targetLabel: 'call center',
+                  _InfoCard(
+                    children: [
+                      _MenuRow(
+                        icon: Icons.edit_rounded,
+                        label: 'Edit Profil',
+                        onTap: () => _showEditProfileDialog(context),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.info_outline_rounded,
-                      label: 'Tentang Go-Dah',
-                      onTap: () => _showInfoDialog(
-                        context,
-                        'Tentang Go-Dah',
-                        'Go-Dah membantu mahasiswa memindahkan dan mengantar barang di area kampus. Untuk barang hilang atau kendala pengiriman, hubungi call center.',
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.lock_rounded,
+                        label: 'Ganti Password',
+                        onTap: () => _showChangePasswordDialog(context),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    _MenuRow(
-                      icon: Icons.logout_rounded,
-                      label: 'Keluar dari Akun',
-                      color: AppColors.error,
-                      onTap: () async {
-                        await auth.logout();
-                        if (context.mounted) context.go('/login');
-                      },
-                    ),
-                  ]),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.support_agent_rounded,
+                        label: 'Call Center Barang Hilang',
+                        onTap: () => CallService.callPhone(
+                          context,
+                          _callCenterPhone,
+                          targetLabel: 'call center',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.info_outline_rounded,
+                        label: 'Tentang GoDah',
+                        onTap: () => _showInfoDialog(
+                          context,
+                          'Tentang GoDah',
+                          'GoDah membantu mahasiswa memindahkan dan mengantar barang di area kampus. Untuk barang hilang atau kendala pengiriman, hubungi call center.',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      _MenuRow(
+                        icon: Icons.logout_rounded,
+                        label: 'Keluar dari Akun',
+                        color: AppColors.error,
+                        onTap: () async {
+                          await auth.logout();
+                          if (context.mounted) context.go('/login');
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 32),
 
-                  // App version
                   Center(
                     child: Text(
-                      'Go-Dah Mobile v1.0.0\nJasa Angkut Barang Mahasiswa',
+                      'GoDah Mobile v1.0.0\nJasa Angkut Barang Mahasiswa',
                       style: AppTextStyles.caption.copyWith(height: 1.4),
                       textAlign: TextAlign.center,
                     ),
@@ -486,7 +498,11 @@ class _MenuRow extends StatelessWidget {
             const SizedBox(width: 12),
             Text(label, style: AppTextStyles.labelLg.copyWith(color: color)),
             const Spacer(),
-            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.grey400),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppColors.grey400,
+            ),
           ],
         ),
       ),

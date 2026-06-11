@@ -1,9 +1,3 @@
-// lib/features/user/screens/user_payment_screen.dart
-// Screen untuk handle Midtrans payment flow:
-// 1. Tampil ringkasan order + tombol "Bayar Sekarang"
-// 2. Buka Midtrans di browser eksternal
-// 3. User balik ke app → tombol "Saya Sudah Bayar"
-// 4. Panggil mark-paid-manual → cek status → tampil sukses/gagal
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,7 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/payment_service.dart';
 
 class UserPaymentScreen extends StatefulWidget {
-  final String orderId;       // order ID di Supabase
+  final String orderId;
   final double totalBiaya;
   final String lokasiJemput;
   final String lokasiTujuan;
@@ -37,14 +31,11 @@ class UserPaymentScreen extends StatefulWidget {
 }
 
 class _UserPaymentScreenState extends State<UserPaymentScreen> {
-  // ── State machine ──────────────────────────────────────────────────
   _PaymentState _state = _PaymentState.idle;
 
-  // Data dari backend setelah /payments/create
   String? _midtransOrderId;
   String? _redirectUrl;
 
-  // ── Step 1: Buat payment + buka Midtrans ──────────────────────────
   Future<void> _bayarSekarang() async {
     setState(() => _state = _PaymentState.creatingPayment);
 
@@ -66,7 +57,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
     _midtransOrderId = result.midtransOrderId;
     _redirectUrl = result.redirectUrl;
 
-    // Buka halaman Midtrans di browser eksternal
     final uri = Uri.parse(result.redirectUrl);
     final canLaunch = await canLaunchUrl(uri);
     if (!canLaunch) {
@@ -78,18 +68,15 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
     await launchUrl(uri, mode: LaunchMode.externalApplication);
 
-    // Setelah launchUrl selesai (user balik ke app), tampil tombol konfirmasi
     if (!mounted) return;
     setState(() => _state = _PaymentState.waitingConfirmation);
   }
 
-  // ── Step 2: Mark paid + cek status ───────────────────────────────
   Future<void> _sudahBayar() async {
     if (_midtransOrderId == null) return;
 
     setState(() => _state = _PaymentState.verifying);
 
-    // Panggil backend → backend update Supabase
     final success = await PaymentService.instance.markPaidManual(
       midtransOrderId: _midtransOrderId!,
       paymentType: 'bank_transfer',
@@ -104,7 +91,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
       return;
     }
 
-    // Cek status dari backend
     final status = await PaymentService.instance.checkPaymentStatus(
       widget.orderId,
     );
@@ -114,7 +100,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
     if (status == 'paid') {
       setState(() => _state = _PaymentState.success);
     } else {
-      // Status belum paid tapi mark berhasil — anggap pending, coba lagi nanti
       setState(() => _state = _PaymentState.waitingConfirmation);
       _showSnack(
         'Status masih pending. Tunggu sebentar lalu coba lagi.',
@@ -123,7 +108,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
     }
   }
 
-  // ── Buka ulang Midtrans (kalau user belum bayar) ───────────────────
   Future<void> _bukaMidtransLagi() async {
     if (_redirectUrl == null) return;
     final uri = Uri.parse(_redirectUrl!);
@@ -160,7 +144,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Ringkasan Order ──────────────────────────────
                   _OrderSummaryCard(
                     orderId: widget.orderId,
                     lokasiJemput: widget.lokasiJemput,
@@ -170,7 +153,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ── Panel status sesuai state ────────────────────
                   if (_state == _PaymentState.waitingConfirmation) ...[
                     _WaitingPanel(
                       onSudahBayar: _sudahBayar,
@@ -179,7 +161,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
                   ] else if (_state == _PaymentState.verifying) ...[
                     _VerifyingPanel(),
                   ] else ...[
-                    // idle / creatingPayment
                     _BayarPanel(
                       loading: _state == _PaymentState.creatingPayment,
                       onBayar: _bayarSekarang,
@@ -188,7 +169,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Info keamanan
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -209,17 +189,15 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
   }
 }
 
-// ── Enum State ────────────────────────────────────────────────────────────
 
 enum _PaymentState {
-  idle,               // belum mulai
-  creatingPayment,    // loading POST /payments/create
-  waitingConfirmation, // Midtrans sudah dibuka, nunggu user balik
-  verifying,          // loading mark-paid + cek status
-  success,            // paid ✅
+  idle,
+  creatingPayment,
+  waitingConfirmation,
+  verifying,
+  success,
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────
 
 class _OrderSummaryCard extends StatelessWidget {
   final String orderId;
@@ -262,7 +240,6 @@ class _OrderSummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
@@ -295,7 +272,6 @@ class _OrderSummaryCard extends StatelessWidget {
             ),
           ),
 
-          // Detail
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -384,7 +360,6 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-// Tombol Bayar Sekarang (state awal)
 class _BayarPanel extends StatelessWidget {
   final bool loading;
   final VoidCallback onBayar;
@@ -451,7 +426,6 @@ class _BayarPanel extends StatelessWidget {
   }
 }
 
-// Panel tunggu konfirmasi (state setelah buka Midtrans)
 class _WaitingPanel extends StatelessWidget {
   final VoidCallback onSudahBayar;
   final VoidCallback onBukaMidtrans;
@@ -465,7 +439,6 @@ class _WaitingPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Banner status
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -503,7 +476,6 @@ class _WaitingPanel extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
-        // Tombol utama: Saya Sudah Bayar
         ElevatedButton.icon(
           onPressed: onSudahBayar,
           icon: const Icon(Icons.check_circle_rounded, size: 22),
@@ -522,7 +494,6 @@ class _WaitingPanel extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Tombol sekunder: Buka Midtrans lagi
         OutlinedButton.icon(
           onPressed: onBukaMidtrans,
           icon: const Icon(Icons.open_in_browser_rounded, size: 18),
@@ -541,7 +512,6 @@ class _WaitingPanel extends StatelessWidget {
   }
 }
 
-// Panel loading verifikasi
 class _VerifyingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -572,7 +542,6 @@ class _VerifyingPanel extends StatelessWidget {
   }
 }
 
-// View sukses
 class _SuccessView extends StatelessWidget {
   final VoidCallback onSelesai;
 
@@ -601,7 +570,7 @@ class _SuccessView extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Pembayaran Berhasil! 🎉',
+              'Pembayaran Berhasil! ',
               style: AppTextStyles.h2.copyWith(
                 color: AppColors.primary,
                 fontWeight: FontWeight.bold,

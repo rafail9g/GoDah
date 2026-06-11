@@ -158,7 +158,6 @@ class _HistoryOrderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -197,7 +196,6 @@ class _HistoryOrderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // User info
                 Row(
                   children: [
                     CircleAvatar(
@@ -228,7 +226,6 @@ class _HistoryOrderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Lokasi
                 _LokasiItem(
                   icon: Icons.radio_button_on_rounded,
                   color: AppColors.success,
@@ -247,7 +244,6 @@ class _HistoryOrderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Detail barang
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
@@ -271,7 +267,6 @@ class _HistoryOrderCard extends StatelessWidget {
                   ],
                 ),
 
-                // Rating
                 if (ratingData != null) ...[
                   const Divider(height: 20),
                   Row(
@@ -299,7 +294,6 @@ class _HistoryOrderCard extends StatelessWidget {
                   ),
                 ],
 
-                // Bukti Pengiriman
                 if (buktiData != null) ...[
                   const Divider(height: 20),
                   Text('Bukti Pengiriman', style: AppTextStyles.labelLg),
@@ -378,7 +372,6 @@ class _HistoryOrderCard extends StatelessWidget {
   String _pad(int n) => n.toString().padLeft(2, '0');
 }
 
-// ── Shared Widgets ────────────────────────────────────────────────────────
 
 class _LokasiItem extends StatelessWidget {
   final IconData icon;

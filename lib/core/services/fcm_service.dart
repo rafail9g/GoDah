@@ -19,9 +19,9 @@ class FcmService {
   final _supabase = Supabase.instance.client;
 
   static const _channelId = 'godah_orders';
-  static const _channelName = 'Go-Dah Orders';
+  static const _channelName = 'GoDah Orders';
   static const _verificationChannelId = 'godah_verifikasi';
-  static const _verificationChannelName = 'Go-Dah Verifikasi';
+  static const _verificationChannelName = 'GoDah Verifikasi';
 
   Future<void> init() async {
     FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
@@ -47,7 +47,9 @@ class FcmService {
   }
 
   Future<void> _initLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -64,14 +66,16 @@ class FcmService {
       },
     );
 
-if (Platform.isAndroid) {
+    if (Platform.isAndroid) {
       final androidImpl = _localNotif
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await androidImpl?.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
           _channelName,
-          description: 'Notifikasi order Go-Dah',
+          description: 'Notifikasi order GoDah',
           importance: Importance.high,
         ),
       );
@@ -79,7 +83,7 @@ if (Platform.isAndroid) {
         const AndroidNotificationChannel(
           _verificationChannelId,
           _verificationChannelName,
-          description: 'Notifikasi verifikasi porter Go-Dah',
+          description: 'Notifikasi verifikasi porter GoDah',
           importance: Importance.high,
         ),
       );
@@ -102,9 +106,7 @@ if (Platform.isAndroid) {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
-          styleInformation: BigTextStyleInformation(
-            notification.body ?? '',
-          ),
+          styleInformation: BigTextStyleInformation(notification.body ?? ''),
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
@@ -136,18 +138,24 @@ if (Platform.isAndroid) {
       final token = await getToken();
       if (token == null) return;
 
-      await _supabase.from('admins').update({
-        'fcm_token': token,
-        'fcm_token_updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', adminId);
+      await _supabase
+          .from('admins')
+          .update({
+            'fcm_token': token,
+            'fcm_token_updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', adminId);
 
       debugPrint('FCM token admin disimpan');
 
       _messaging.onTokenRefresh.listen((newToken) async {
-        await _supabase.from('admins').update({
-          'fcm_token': newToken,
-          'fcm_token_updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', adminId);
+        await _supabase
+            .from('admins')
+            .update({
+              'fcm_token': newToken,
+              'fcm_token_updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', adminId);
         debugPrint('FCM token admin diperbarui');
       });
     } catch (e) {
@@ -157,9 +165,10 @@ if (Platform.isAndroid) {
 
   Future<void> clearAdminToken(String adminId) async {
     try {
-      await _supabase.from('admins').update({
-        'fcm_token': null,
-      }).eq('id', adminId);
+      await _supabase
+          .from('admins')
+          .update({'fcm_token': null})
+          .eq('id', adminId);
       await _messaging.deleteToken();
       debugPrint('FCM token admin dihapus');
     } catch (e) {
@@ -192,10 +201,13 @@ if (Platform.isAndroid) {
       final token = await getToken();
       if (token == null) return;
 
-      await _supabase.from(table).update({
-        'fcm_token': token,
-        'fcm_token_updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', id);
+      await _supabase
+          .from(table)
+          .update({
+            'fcm_token': token,
+            'fcm_token_updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id);
 
       debugPrint('FCM token $label disimpan');
     } catch (e) {
@@ -209,16 +221,13 @@ if (Platform.isAndroid) {
     required String label,
   }) async {
     try {
-      await _supabase.from(table).update({
-        'fcm_token': null,
-      }).eq('id', id);
+      await _supabase.from(table).update({'fcm_token': null}).eq('id', id);
       debugPrint('FCM token $label dihapus');
     } catch (e) {
       debugPrint('Gagal hapus FCM token $label: $e');
     }
   }
 
-  // ── Notif Verifikasi Porter ke Admin ──────────────────────────────
   Future<void> sendVerifikasiNotifToAdmin({
     required String porterNama,
     required String porterId,
@@ -232,7 +241,8 @@ if (Platform.isAndroid) {
           'porter_nama': porterNama,
           'porter_id': porterId,
           'title': 'Pengajuan Verifikasi Porter Baru',
-          'body': '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
+          'body':
+              '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
         },
       );
       debugPrint('Notif terkirim ke admin $targetAdminId');
@@ -241,7 +251,6 @@ if (Platform.isAndroid) {
     }
   }
 
-  // ── Notif Order Baru ke Porter ─────────────────────────────────────
   Future<void> sendNewOrderNotifToPorter({
     required String targetPorterId,
     required String orderId,
@@ -254,8 +263,9 @@ if (Platform.isAndroid) {
         'send-fcm-notification',
         body: {
           'target_porter_id': targetPorterId,
-          'title': '🔔 Order Baru Masuk!',
-          'body': 'Ada order baru: $jenisBrg dari $lokasiJemput ke $lokasiTujuan. Segera terima!',
+          'title': 'Order Baru Masuk!',
+          'body':
+              'Ada order baru: $jenisBrg dari $lokasiJemput ke $lokasiTujuan. Segera terima!',
           'type': 'order_new',
           'data': {
             'order_id': orderId,
@@ -270,7 +280,6 @@ if (Platform.isAndroid) {
     }
   }
 
-  // ── Notif Status Order ke User ─────────────────────────────────────
   Future<void> sendOrderStatusNotifToUser({
     required String targetUserId,
     required String orderId,
@@ -288,10 +297,7 @@ if (Platform.isAndroid) {
           'title': title,
           'body': body,
           'type': 'order_status',
-          'data': {
-            'order_id': orderId,
-            'status': status,
-          },
+          'data': {'order_id': orderId, 'status': status},
         },
       );
       debugPrint('Notif status $status terkirim ke user $targetUserId');
@@ -300,30 +306,29 @@ if (Platform.isAndroid) {
     }
   }
 
-  // ── Helper: Konten Notif per Status ───────────────────────────────
   (String?, String) _getStatusNotifContent(String status, String? porterNama) {
     final nama = porterNama ?? 'Porter';
     return switch (status) {
       'diterima' => (
-          '✅ Order Diterima!',
-          '$nama sudah menerima ordermu dan akan segera menuju lokasimu.',
-        ),
+        'Order Diterima!',
+        '$nama sudah menerima ordermu dan akan segera menuju lokasimu.',
+      ),
       'menuju_lokasi' => (
-          '🚶 Porter Menuju Lokasimu',
-          '$nama sedang dalam perjalanan ke titik penjemputan.',
-        ),
+        'Porter Menuju Lokasimu',
+        '$nama sedang dalam perjalanan ke titik penjemputan.',
+      ),
       'dalam_perjalanan' => (
-          '🚚 Barang Sedang Diantar',
-          '$nama sudah mengambil barangmu dan sedang menuju tujuan.',
-        ),
+        'Barang Sedang Diantar',
+        '$nama sudah mengambil barangmu dan sedang menuju tujuan.',
+      ),
       'sampai_tujuan' => (
-          '📍 Barang Sudah Sampai!',
-          'Barangmu sudah tiba di tujuan. Silakan konfirmasi penerimaan.',
-        ),
+        'Barang Sudah Sampai!',
+        'Barangmu sudah tiba di tujuan. Silakan konfirmasi penerimaan.',
+      ),
       'selesai' => (
-          '🎉 Order Selesai!',
-          'Ordermu telah selesai. Jangan lupa beri rating untuk $nama ya!',
-        ),
+        'Order Selesai!',
+        'Ordermu telah selesai. Jangan lupa beri rating untuk $nama ya!',
+      ),
       _ => (null, ''),
     };
   }

@@ -38,7 +38,6 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
     super.dispose();
   }
 
-  // FIX: baca _passCtrl.text saat validasi berlangsung, bukan saat build
   String? _validateConfirmPass(String? value) {
     if (value == null || value.isEmpty) return AppStrings.validRequired;
     if (value != _passCtrl.text) return AppStrings.validPasswordMatch;
@@ -85,7 +84,6 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Info banner
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -174,7 +172,6 @@ class _RegisterPorterScreenState extends State<RegisterPorterScreen> {
                 hint: 'Ulangi password',
                 obscureText: _obscureConfirm,
                 prefixIcon: Icons.lock_outline_rounded,
-                // FIX: pakai method lokal supaya baca nilai terbaru _passCtrl
                 validator: _validateConfirmPass,
                 suffixIcon: IconButton(
                   icon: Icon(

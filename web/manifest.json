@@ -1,6 +1,6 @@
 {
-    "name": "go_dah",
-    "short_name": "go_dah",
+    "name": "GoDah",
+    "short_name": "GoDah",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

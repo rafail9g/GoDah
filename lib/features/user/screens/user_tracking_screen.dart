@@ -1,9 +1,3 @@
-// lib/features/user/screens/user_tracking_screen.dart
-// UPDATED: Real-time GPS tracking porter kayak Gojek/GoSend
-// - Auto-pan ke posisi porter tiap ada update
-// - Progress bar status perjalanan
-// - Tampil foto bukti penjemputan jika sudah diambil
-// - Status info yang lebih informatif
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -52,13 +46,12 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
   String _porterNama = '-';
   String _porterPhone = '-';
   bool _isLoading = true;
-  String? _fotoBuktiJemput; // Foto barang saat porter tiba di jemput
+  String? _fotoBuktiJemput;
 
   late final RealtimeChannel _channel;
   Timer? _autoRefreshTimer;
   bool _refreshing = false;
 
-  // Urutan status untuk progress indicator
   static const _statusSteps = [
     'diterima',
     'menuju_lokasi',
@@ -90,21 +83,18 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
     _refreshing = true;
 
     try {
-      // Data porter (nama, HP, posisi GPS terkini)
       final porterData = await _supabase
           .from('porters')
           .select('nama, no_hp, latitude, longitude')
           .eq('id', widget.porterId)
           .single();
 
-      // Status order terkini
       final orderData = await _supabase
           .from('orders')
           .select('status')
           .eq('id', widget.orderId)
           .single();
 
-      // Cek apakah ada foto bukti jemput
       final buktiJemput = await _supabase
           .from('bukti_pengiriman')
           .select('foto_url')
@@ -137,11 +127,9 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
     }
   }
 
-  // ── Realtime: posisi porter + status order update otomatis ───────────────
   void _subscribeRealtime() {
     _channel = _supabase
         .channel('tracking-${widget.orderId}')
-        // Update posisi GPS porter
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -158,12 +146,10 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
 
             if (lat != null && lng != null && lat != 0 && lng != 0 && mounted) {
               setState(() => _porterLatLng = LatLng(lat, lng));
-              // Auto-pan kamera ke posisi porter terbaru
               _mapController.move(LatLng(lat, lng), _mapController.camera.zoom);
             }
           },
         )
-        // Update status order
         .onPostgresChanges(
           event: PostgresChangeEvent.update,
           schema: 'public',
@@ -177,14 +163,12 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
             final newStatus = payload.newRecord['status'] as String?;
             if (newStatus != null && mounted) {
               setState(() => _orderStatus = newStatus);
-              // Kalau ada foto baru (porter tiba di jemput), reload
               if (newStatus == 'dalam_perjalanan') {
                 _loadFotoBuktiJemput();
               }
             }
           },
         )
-        // Notif kalau ada foto bukti baru diupload porter
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -219,7 +203,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
     } catch (_) {}
   }
 
-  // ── Helper: warna dan label per status ───────────────────────────────────
   Color _statusColor(String s) => switch (s) {
     'diterima' => AppColors.statusDiterima,
     'menuju_lokasi' => AppColors.statusMenujuLokasi,
@@ -230,12 +213,12 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
   };
 
   String _statusLabel(String s) => switch (s) {
-    'diterima' => '✅ Porter menerima ordermu',
-    'menuju_lokasi' => '🚶 Porter sedang menuju lokasimu',
-    'dalam_perjalanan' => '🚚 Barangmu sedang dalam perjalanan',
-    'sampai_tujuan' => '📍 Barangmu sudah sampai di tujuan!',
-    'selesai' => '🎉 Order selesai!',
-    _ => '🕐 Mencari porter...',
+    'diterima' => 'Porter menerima ordermu',
+    'menuju_lokasi' => 'Porter sedang menuju lokasimu',
+    'dalam_perjalanan' => 'Barangmu sedang dalam perjalanan',
+    'sampai_tujuan' => 'Barangmu sudah sampai di tujuan!',
+    'selesai' => 'Order selesai!',
+    _ => 'Mencari porter...',
   };
 
   String _statusSubInfo(String s) => switch (s) {
@@ -247,7 +230,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
     _ => '',
   };
 
-  // Index step untuk progress bar
   int get _currentStep {
     final idx = _statusSteps.indexOf(_orderStatus);
     return idx < 0 ? 0 : idx;
@@ -265,7 +247,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
         title: const Text('Lacak Portermu'),
         backgroundColor: const Color(0xFF1E3C72),
         actions: [
-          // Tombol center ke posisi porter
           if (_porterLatLng != null)
             IconButton(
               icon: const Icon(Icons.my_location_rounded),
@@ -280,7 +261,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
             )
           : Column(
               children: [
-                // ── STATUS HEADER ────────────────────────────────────────
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
@@ -313,7 +293,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                         ),
                       ],
                       const SizedBox(height: 10),
-                      // Progress steps
                       _StatusProgressBar(
                         steps: const [
                           'Diterima',
@@ -329,7 +308,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                   ),
                 ),
 
-                // ── PETA REAL-TIME ───────────────────────────────────────
                 Expanded(
                   flex: 5,
                   child: FlutterMap(
@@ -345,7 +323,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                         userAgentPackageName: 'com.example.go_dah',
                       ),
 
-                      // Garis rute jemput → tujuan (abu-abu putus)
                       PolylineLayer(
                         polylines: [
                           Polyline(
@@ -354,12 +331,10 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                             color: AppColors.grey300,
                             isDotted: true,
                           ),
-                          // Garis porter → destinasi terkini (biru solid)
                           if (_porterLatLng != null)
                             Polyline(
                               points: [
                                 _porterLatLng!,
-                                // Arahkan ke tujuan relevan berdasarkan status
                                 (_orderStatus == 'dalam_perjalanan' ||
                                         _orderStatus == 'sampai_tujuan')
                                     ? lokasiTujuan
@@ -371,10 +346,8 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                         ],
                       ),
 
-                      // Markers
                       MarkerLayer(
                         markers: [
-                          // Lokasi jemput (hijau)
                           Marker(
                             point: lokasiJemput,
                             width: 44,
@@ -385,7 +358,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                               label: 'Jemput',
                             ),
                           ),
-                          // Tujuan (merah)
                           if (widget.latTujuan != 0)
                             Marker(
                               point: lokasiTujuan,
@@ -397,7 +369,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                                 label: 'Tujuan',
                               ),
                             ),
-                          // Porter marker — bergerak real-time
                           if (_porterLatLng != null)
                             Marker(
                               point: _porterLatLng!,
@@ -411,14 +382,12 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                   ),
                 ),
 
-                // ── INFO PANEL PORTER ─────────────────────────────────────
                 Container(
                   color: AppColors.white,
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Porter info row
                       Row(
                         children: [
                           CircleAvatar(
@@ -469,7 +438,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
 
                       const SizedBox(height: 12),
 
-                      // Rute ringkas
                       _RouteRow(label: 'Jemput', text: widget.lokasiJemput),
                       const SizedBox(height: 4),
                       _RouteRow(
@@ -495,8 +463,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                         ),
                       ),
 
-                      // Foto barang saat dijemput (muncul ketika porter
-                      // sudah tiba & ngambil foto)
                       if (_fotoBuktiJemput != null) ...[
                         const Divider(height: 20),
                         Row(
@@ -557,9 +523,6 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS BAR STATUS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _StatusProgressBar extends StatelessWidget {
   final List<String> steps;
@@ -576,7 +539,6 @@ class _StatusProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: List.generate(steps.length * 2 - 1, (i) {
-        // Ganjil = connector line, genap = step dot
         if (i.isOdd) {
           final stepIdx = i ~/ 2;
           final isDone = stepIdx < currentStep;
@@ -622,9 +584,6 @@ class _StatusProgressBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAP WIDGETS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _PorterMarker extends StatelessWidget {
   final Color color;

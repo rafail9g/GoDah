@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 abstract final class AppTextStyles {
-  // Display
   static const TextStyle displayLg = TextStyle(
     fontSize: 36,
     fontWeight: FontWeight.w700,
@@ -18,7 +17,6 @@ abstract final class AppTextStyles {
     letterSpacing: -0.3,
   );
 
-  // Heading
   static const TextStyle h1 = TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.w700,
@@ -44,7 +42,6 @@ abstract final class AppTextStyles {
     height: 1.4,
   );
 
-  // Body
   static const TextStyle bodyLg = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w400,
@@ -64,7 +61,6 @@ abstract final class AppTextStyles {
     height: 1.5,
   );
 
-  // Label
   static const TextStyle labelLg = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
@@ -84,7 +80,6 @@ abstract final class AppTextStyles {
     letterSpacing: 0.2,
   );
 
-  // Caption
   static const TextStyle caption = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w400,
@@ -92,7 +87,6 @@ abstract final class AppTextStyles {
     height: 1.4,
   );
 
-  // Button
   static const TextStyle buttonLg = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w600,
@@ -109,7 +103,6 @@ abstract final class AppTextStyles {
     letterSpacing: 0.2,
   );
 
-  // Link
   static const TextStyle link = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w500,
@@ -118,7 +111,6 @@ abstract final class AppTextStyles {
     decorationColor: AppColors.secondary,
   );
 
-  // Input
   static const TextStyle inputValue = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w400,
@@ -140,7 +132,6 @@ abstract final class AppTextStyles {
     color: AppColors.error,
   );
 
-  // Price
   static const TextStyle priceLg = TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.w700,
@@ -152,7 +143,6 @@ abstract final class AppTextStyles {
     color: AppColors.primary,
   );
 
-  // Badge
   static const TextStyle badge = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w600,

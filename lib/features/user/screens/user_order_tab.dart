@@ -1,7 +1,3 @@
-// lib/features/user/screens/user_order_tab.dart
-// UPDATED: Integrasi Midtrans payment gateway
-// Flow: Buat order di Supabase → Navigate ke payment screen → Midtrans → Konfirmasi
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -30,7 +26,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
   final _catatanCtrl = TextEditingController();
   final _mapController = MapController();
 
-  // ── Lokasi State ───────────────────────────────────────────────
   LatLng? _lokasiJemput;
   LatLng? _lokasiTujuan;
   String _alamatJemput = '';
@@ -38,7 +33,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
   bool _loadingSubmit = false;
   bool _mapSelectingTujuan = false;
 
-  // ── Detail Order ───────────────────────────────────────────────
   String _jenisBrg = 'Koper / Tas Besar';
   String _jenisLayanan = 'instant';
   double _estimasiBerat = 5;
@@ -146,8 +140,11 @@ class _UserOrderTabState extends State<UserOrderTab> {
               final jenis = t['jenis_layanan'] as String? ?? 'semua';
               return jenis == _jenisLayanan || jenis == 'semua';
             },
-            orElse: () =>
-                {'harga_dasar': 5000, 'harga_per_km': 2000, 'harga_per_kg': 500},
+            orElse: () => {
+              'harga_dasar': 5000,
+              'harga_per_km': 2000,
+              'harga_per_kg': 500,
+            },
           )
         : {'harga_dasar': 5000, 'harga_per_km': 2000, 'harga_per_kg': 500};
 
@@ -166,7 +163,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     });
   }
 
-  // ── UPDATED: Buat order → navigate ke payment screen ─────────────
   Future<void> _buatOrder() async {
     if (_lokasiJemput == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,13 +191,10 @@ class _UserOrderTabState extends State<UserOrderTab> {
       if (user == null) return;
 
       final tarif = _tarifList.isNotEmpty
-          ? _tarifList.firstWhere(
-              (t) {
-                final jenis = t['jenis_layanan'] as String? ?? 'semua';
-                return jenis == _jenisLayanan || jenis == 'semua';
-              },
-              orElse: () => _tarifList.first,
-            )
+          ? _tarifList.firstWhere((t) {
+              final jenis = t['jenis_layanan'] as String? ?? 'semua';
+              return jenis == _jenisLayanan || jenis == 'semua';
+            }, orElse: () => _tarifList.first)
           : null;
 
       final totalBiaya = _estimasiBiaya > 0 ? _estimasiBiaya : 15000.0;
@@ -214,30 +207,32 @@ class _UserOrderTabState extends State<UserOrderTab> {
           ? _tujuanCtrl.text.trim()
           : 'Tujuan (${_lokasiTujuan!.latitude.toStringAsFixed(4)}, ${_lokasiTujuan!.longitude.toStringAsFixed(4)})';
 
-      // 1. Insert order ke Supabase (status awal 'menunggu')
-      final insertRes = await _supabase.from('orders').insert({
-        'user_id': user.id,
-        'lokasi_jemput': lokasiJemputStr,
-        'lokasi_tujuan': lokasiTujuanStr,
-        'lat_jemput': _lokasiJemput!.latitude,
-        'lng_jemput': _lokasiJemput!.longitude,
-        'lat_tujuan': _lokasiTujuan!.latitude,
-        'lng_tujuan': _lokasiTujuan!.longitude,
-        'jenis_barang': _jenisBrg,
-        'estimasi_berat': _estimasiBerat,
-        'jenis_layanan': _jenisLayanan,
-        'total_biaya': totalBiaya,
-        if (_catatanCtrl.text.trim().isNotEmpty)
-          'catatan': _catatanCtrl.text.trim(),
-        if (tarif != null) 'tarif_id': tarif['id'],
-      }).select('id').single();
+      final insertRes = await _supabase
+          .from('orders')
+          .insert({
+            'user_id': user.id,
+            'lokasi_jemput': lokasiJemputStr,
+            'lokasi_tujuan': lokasiTujuanStr,
+            'lat_jemput': _lokasiJemput!.latitude,
+            'lng_jemput': _lokasiJemput!.longitude,
+            'lat_tujuan': _lokasiTujuan!.latitude,
+            'lng_tujuan': _lokasiTujuan!.longitude,
+            'jenis_barang': _jenisBrg,
+            'estimasi_berat': _estimasiBerat,
+            'jenis_layanan': _jenisLayanan,
+            'total_biaya': totalBiaya,
+            if (_catatanCtrl.text.trim().isNotEmpty)
+              'catatan': _catatanCtrl.text.trim(),
+            if (tarif != null) 'tarif_id': tarif['id'],
+          })
+          .select('id')
+          .single();
 
       if (!mounted) return;
       setState(() => _loadingSubmit = false);
 
       final orderId = insertRes['id'] as String;
 
-      // 2. Navigate ke payment screen
       final paymentSuccess = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (_) => UserPaymentScreen(
@@ -252,7 +247,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
         ),
       );
 
-      // 3. Kalau payment sukses, reset form
       if (paymentSuccess == true && mounted) {
         await _kirimNotifOrderBaruKePorterOnline(
           orderId: orderId,
@@ -272,7 +266,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Order berhasil dibuat! Porter sedang dicari...'),
+            content: Text('Order berhasil dibuat! Porter sedang dicari...'),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 3),
           ),
@@ -328,7 +322,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // ── Header ─────────────────────────────────────────────
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -346,14 +339,19 @@ class _UserOrderTabState extends State<UserOrderTab> {
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.local_shipping_rounded,
-                      color: AppColors.white, size: 22),
+                  child: const Icon(
+                    Icons.local_shipping_rounded,
+                    color: AppColors.white,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Pesan Go-Dah',
+                  'Pesan GoDah',
                   style: AppTextStyles.h2.copyWith(
-                      color: AppColors.white, fontWeight: FontWeight.bold),
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -391,13 +389,15 @@ class _UserOrderTabState extends State<UserOrderTab> {
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         side: const BorderSide(
-                            color: Color(0xFF1E3C72), width: 1.5),
+                          color: Color(0xFF1E3C72),
+                          width: 1.5,
+                        ),
                       ),
                     )
                   else
-                    // ── TOMBOL BAYAR (bukan lagi "Pesan Sekarang" langsung) ──
                     ElevatedButton.icon(
                       onPressed: _loadingSubmit ? null : _buatOrder,
                       icon: _loadingSubmit
@@ -405,7 +405,10 @@ class _UserOrderTabState extends State<UserOrderTab> {
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.white))
+                                strokeWidth: 2,
+                                color: AppColors.white,
+                              ),
+                            )
                           : const Icon(Icons.payment_rounded, size: 20),
                       label: Text(
                         _loadingSubmit
@@ -417,7 +420,8 @@ class _UserOrderTabState extends State<UserOrderTab> {
                         backgroundColor: const Color(0xFF1E3C72),
                         minimumSize: const Size.fromHeight(52),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         elevation: 4,
                       ),
                     ),
@@ -438,9 +442,10 @@ class _UserOrderTabState extends State<UserOrderTab> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -450,19 +455,25 @@ class _UserOrderTabState extends State<UserOrderTab> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
               children: [
-                Text('📍 Pilih Lokasi',
-                    style: AppTextStyles.h4.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold)),
+                Text(
+                  'Pilih Lokasi',
+                  style: AppTextStyles.h4.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const Spacer(),
                 IconButton(
                   icon: _loadingGPS
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.my_location_rounded,
-                          color: AppColors.primary),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(
+                          Icons.my_location_rounded,
+                          color: AppColors.primary,
+                        ),
                   tooltip: 'Refresh GPS',
                   onPressed: _loadingGPS ? null : _getCurrentLocation,
                 ),
@@ -475,8 +486,8 @@ class _UserOrderTabState extends State<UserOrderTab> {
               child: FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
-                  initialCenter: _lokasiJemput ??
-                      const LatLng(-7.9797, 113.6175),
+                  initialCenter:
+                      _lokasiJemput ?? const LatLng(-7.9797, 113.6175),
                   initialZoom: 15.0,
                   onTap: _onMapTap,
                 ),
@@ -537,10 +548,10 @@ class _UserOrderTabState extends State<UserOrderTab> {
                   text: _loadingGPS
                       ? 'Mengambil lokasi GPS...'
                       : _lokasiJemput != null
-                          ? _alamatJemput.isNotEmpty
-                              ? _alamatJemput
-                              : '${_lokasiJemput!.latitude.toStringAsFixed(5)}, ${_lokasiJemput!.longitude.toStringAsFixed(5)}'
-                          : 'Ketuk ikon GPS di atas untuk deteksi lokasi',
+                      ? _alamatJemput.isNotEmpty
+                            ? _alamatJemput
+                            : '${_lokasiJemput!.latitude.toStringAsFixed(5)}, ${_lokasiJemput!.longitude.toStringAsFixed(5)}'
+                      : 'Ketuk ikon GPS di atas untuk deteksi lokasi',
                   isLoading: _loadingGPS,
                 ),
                 const SizedBox(height: 10),
@@ -550,8 +561,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
                       setState(() => _mapSelectingTujuan = true);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text(
-                              '👆 Ketuk peta untuk pilih lokasi tujuan'),
+                          content: Text('Ketuk peta untuk pilih lokasi tujuan'),
                           duration: Duration(seconds: 3),
                           backgroundColor: AppColors.primary,
                         ),
@@ -563,9 +573,11 @@ class _UserOrderTabState extends State<UserOrderTab> {
                           : Icons.add_location_alt_rounded,
                       size: 18,
                     ),
-                    label: Text(_mapSelectingTujuan
-                        ? 'Ketuk peta untuk pilih tujuan...'
-                        : 'Pilih Lokasi Tujuan di Peta'),
+                    label: Text(
+                      _mapSelectingTujuan
+                          ? 'Ketuk peta untuk pilih tujuan...'
+                          : 'Pilih Lokasi Tujuan di Peta',
+                    ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(44),
                       foregroundColor: _mapSelectingTujuan
@@ -618,22 +630,31 @@ class _UserOrderTabState extends State<UserOrderTab> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('📦 Detail Barang',
-              style: AppTextStyles.h4.copyWith(
-                  color: AppColors.primary, fontWeight: FontWeight.bold)),
+          Text(
+            'Detail Barang',
+            style: AppTextStyles.h4.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
-          Text('Kategori Barang',
-              style: AppTextStyles.labelLg
-                  .copyWith(fontWeight: FontWeight.bold, color: AppColors.grey700)),
+          Text(
+            'Kategori Barang',
+            style: AppTextStyles.labelLg.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.grey700,
+            ),
+          ),
           const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 3,
@@ -643,33 +664,45 @@ class _UserOrderTabState extends State<UserOrderTab> {
             mainAxisSpacing: 10,
             childAspectRatio: 1.05,
             children: kategoriList
-                .map((k) => _KategoriCard(
-                      label: k.$1,
-                      icon: k.$2,
-                      selected: _jenisBrg == k.$1,
-                      onTap: () => setState(() => _jenisBrg = k.$1),
-                    ))
+                .map(
+                  (k) => _KategoriCard(
+                    label: k.$1,
+                    icon: k.$2,
+                    selected: _jenisBrg == k.$1,
+                    onTap: () => setState(() => _jenisBrg = k.$1),
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 20),
           Row(
             children: [
-              Text('Estimasi Berat',
-                  style: AppTextStyles.labelLg
-                      .copyWith(fontWeight: FontWeight.bold, color: AppColors.grey700)),
+              Text(
+                'Estimasi Berat',
+                style: AppTextStyles.labelLg.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.grey700,
+                ),
+              ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.remove_circle_outline_rounded,
-                    color: AppColors.primary, size: 26),
+                icon: const Icon(
+                  Icons.remove_circle_outline_rounded,
+                  color: AppColors.primary,
+                  size: 26,
+                ),
                 onPressed: _estimasiBerat > 1
                     ? () => setState(() {
-                          _estimasiBerat--;
-                          _showEstimasi = false;
-                        })
+                        _estimasiBerat--;
+                        _showEstimasi = false;
+                      })
                     : null,
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -677,17 +710,22 @@ class _UserOrderTabState extends State<UserOrderTab> {
                 child: Text(
                   '${_estimasiBerat.toStringAsFixed(0)} kg',
                   style: AppTextStyles.h4.copyWith(
-                      color: AppColors.primary, fontWeight: FontWeight.bold),
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.add_circle_outline_rounded,
-                    color: AppColors.primary, size: 26),
+                icon: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: AppColors.primary,
+                  size: 26,
+                ),
                 onPressed: _estimasiBerat < 50
                     ? () => setState(() {
-                          _estimasiBerat++;
-                          _showEstimasi = false;
-                        })
+                        _estimasiBerat++;
+                        _showEstimasi = false;
+                      })
                     : null,
               ),
             ],
@@ -716,18 +754,23 @@ class _UserOrderTabState extends State<UserOrderTab> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('⚡ Jenis Layanan',
-              style: AppTextStyles.h4.copyWith(
-                  color: AppColors.primary, fontWeight: FontWeight.bold)),
+          Text(
+            'Jenis Layanan',
+            style: AppTextStyles.h4.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -770,18 +813,23 @@ class _UserOrderTabState extends State<UserOrderTab> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 4))
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('📝 Catatan (Opsional)',
-              style: AppTextStyles.h4.copyWith(
-                  color: AppColors.primary, fontWeight: FontWeight.bold)),
+          Text(
+            'Catatan (Opsional)',
+            style: AppTextStyles.h4.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _catatanCtrl,
@@ -796,8 +844,6 @@ class _UserOrderTabState extends State<UserOrderTab> {
     );
   }
 }
-
-// ── Sub-widgets ──────────────────────────────────────────────────────────
 
 class _LokasiRow extends StatelessWidget {
   final IconData icon;
@@ -825,17 +871,18 @@ class _LokasiRow extends StatelessWidget {
             ? SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: color))
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              )
             : Icon(icon, color: color, size: 16),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: AppTextStyles.labelSm
-                      .copyWith(color: AppColors.grey500)),
+              Text(
+                label,
+                style: AppTextStyles.labelSm.copyWith(color: AppColors.grey500),
+              ),
               Text(
                 text,
                 style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey800),
@@ -847,8 +894,11 @@ class _LokasiRow extends StatelessWidget {
         ),
         if (onEdit != null)
           IconButton(
-            icon: const Icon(Icons.close_rounded,
-                size: 18, color: AppColors.grey400),
+            icon: const Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: AppColors.grey400,
+            ),
             onPressed: onEdit,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -892,11 +942,11 @@ class _KategoriCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon,
-                  color: selected
-                      ? const Color(0xFF1E3C72)
-                      : AppColors.grey600,
-                  size: 24),
+              Icon(
+                icon,
+                color: selected ? const Color(0xFF1E3C72) : AppColors.grey600,
+                size: 24,
+              ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -904,8 +954,7 @@ class _KategoriCard extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 10,
-                    fontWeight:
-                        selected ? FontWeight.bold : FontWeight.w500,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                     color: selected
                         ? const Color(0xFF1E3C72)
                         : AppColors.grey700,
@@ -957,22 +1006,25 @@ class _LayananCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(icon,
-                color: selected
-                    ? const Color(0xFF1E3C72)
-                    : AppColors.grey500,
-                size: 32),
+            Icon(
+              icon,
+              color: selected ? const Color(0xFF1E3C72) : AppColors.grey500,
+              size: 32,
+            ),
             const SizedBox(height: 10),
-            Text(title,
-                style: AppTextStyles.labelLg.copyWith(
-                    color: selected
-                        ? const Color(0xFF1E3C72)
-                        : AppColors.grey800,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              title,
+              style: AppTextStyles.labelLg.copyWith(
+                color: selected ? const Color(0xFF1E3C72) : AppColors.grey800,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(subtitle,
-                style: AppTextStyles.caption.copyWith(fontSize: 10),
-                textAlign: TextAlign.center),
+            Text(
+              subtitle,
+              style: AppTextStyles.caption.copyWith(fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -1027,28 +1079,39 @@ class _EstimasiCard extends StatelessWidget {
               color: Colors.white24,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.receipt_long_rounded,
-                color: AppColors.white, size: 28),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: AppColors.white,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Estimasi Biaya Jasa',
-                    style: AppTextStyles.labelMd
-                        .copyWith(color: AppColors.white.withOpacity(0.8))),
+                Text(
+                  'Estimasi Biaya Jasa',
+                  style: AppTextStyles.labelMd.copyWith(
+                    color: AppColors.white.withOpacity(0.8),
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('Rp $rupiahStr',
-                    style: AppTextStyles.priceLg.copyWith(
-                        color: AppColors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold)),
+                Text(
+                  'Rp $rupiahStr',
+                  style: AppTextStyles.priceLg.copyWith(
+                    color: AppColors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   'Jarak GPS: $jarakKm km · Berat: ${berat.toStringAsFixed(0)} kg',
                   style: AppTextStyles.caption.copyWith(
-                      color: AppColors.white.withOpacity(0.7), fontSize: 10),
+                    color: AppColors.white.withOpacity(0.7),
+                    fontSize: 10,
+                  ),
                 ),
               ],
             ),

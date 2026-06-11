@@ -40,7 +40,6 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
     super.dispose();
   }
 
-  // FIX: validator confirmPassword harus dibaca saat validasi, bukan saat build
   String? _validateConfirmPass(String? value) {
     if (value == null || value.isEmpty) return AppStrings.validRequired;
     if (value != _passCtrl.text) return AppStrings.validPasswordMatch;
@@ -91,7 +90,7 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
               Text('Buat Akun Baru', style: AppTextStyles.h2),
               const SizedBox(height: 4),
               Text(
-                'Isi data diri kamu untuk mulai menggunakan Go-Dah',
+                'Isi data diri kamu untuk mulai menggunakan GoDah',
                 style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
               ),
               const SizedBox(height: 28),
@@ -155,7 +154,6 @@ class _RegisterUserScreenState extends State<RegisterUserScreen> {
                 hint: 'Ulangi password',
                 obscureText: _obscureConfirm,
                 prefixIcon: Icons.lock_outline_rounded,
-                // FIX: pakai method lokal, bukan closure yang di-capture saat build
                 validator: _validateConfirmPass,
                 suffixIcon: IconButton(
                   icon: Icon(

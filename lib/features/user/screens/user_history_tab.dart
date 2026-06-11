@@ -1,8 +1,3 @@
-// lib/features/user/screens/user_history_tab.dart
-// CHANGES:
-// 1. Active orders dengan porter assigned → tambah tombol "Lacak Porter"
-// 2. Navigasi ke UserTrackingScreen (real-time GPS maps, kayak Gojek)
-// 3. Tombol muncul hanya jika porter sudah menerima (bukan status 'menunggu')
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -241,7 +236,7 @@ class _UserHistoryTabState extends State<UserHistoryTab>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Terima kasih atas penilaiannya!'),
+          content: Text('Terima kasih atas penilaiannya!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -254,7 +249,6 @@ class _UserHistoryTabState extends State<UserHistoryTab>
     }
   }
 
-  // ── Navigasi ke real-time tracking screen ────────────────────────────
   void _lacakPorter(Map<String, dynamic> order) {
     final porter = order['porters'] as Map<String, dynamic>?;
     final porterId = porter?['id'] as String? ?? order['porter_id'] as String?;
@@ -323,9 +317,6 @@ class _UserHistoryTabState extends State<UserHistoryTab>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTIVE ORDER LIST
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ActiveOrderList extends StatelessWidget {
   final List<Map<String, dynamic>> orders;
@@ -397,11 +388,11 @@ class _ActiveOrderCard extends StatelessWidget {
   };
 
   String _statusLabel(String s) => switch (s) {
-    'menunggu' => '🕐 Mencari Porter...',
-    'diterima' => '✅ Porter Menerima Ordermu',
-    'menuju_lokasi' => '🚶 Porter Menuju Lokasimu',
-    'dalam_perjalanan' => '🚚 Barang Sedang Dibawa',
-    'sampai_tujuan' => '📍 Barang Sudah Sampai',
+    'menunggu' => 'Mencari Porter...',
+    'diterima' => 'Porter Menerima Ordermu',
+    'menuju_lokasi' => 'Porter Menuju Lokasimu',
+    'dalam_perjalanan' => 'Barang Sedang Dibawa',
+    'sampai_tujuan' => 'Barang Sudah Sampai',
     _ => s,
   };
 
@@ -414,7 +405,6 @@ class _ActiveOrderCard extends StatelessWidget {
     _ => '',
   };
 
-  // Apakah porter sudah assigned dan bisa dilacak di maps
   bool get _bisaDilacak {
     final status = order['status'] as String? ?? '';
     final porterId = order['porter_id'];
@@ -446,7 +436,6 @@ class _ActiveOrderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status bar
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -482,7 +471,6 @@ class _ActiveOrderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Lokasi
                 _LokasiRow(
                   icon: Icons.radio_button_on_rounded,
                   color: AppColors.success,
@@ -505,7 +493,6 @@ class _ActiveOrderCard extends StatelessWidget {
                 ),
                 const Divider(height: 20),
 
-                // Info chips
                 Row(
                   children: [
                     _InfoChipUser(
@@ -525,7 +512,6 @@ class _ActiveOrderCard extends StatelessWidget {
                   ],
                 ),
 
-                // ── Porter info + Tombol Lacak ───────────────────────
                 if (porter != null) ...[
                   const Divider(height: 20),
                   Row(
@@ -553,7 +539,6 @@ class _ActiveOrderCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Tombol Hubungi
                       OutlinedButton.icon(
                         onPressed: () => CallService.callPhone(
                           context,
@@ -570,7 +555,6 @@ class _ActiveOrderCard extends StatelessWidget {
                     ],
                   ),
 
-                  // ── TOMBOL LACAK PORTER (kayak Gojek) ───────────────
                   if (_bisaDilacak) ...[
                     const SizedBox(height: 10),
                     SizedBox(
@@ -598,7 +582,6 @@ class _ActiveOrderCard extends StatelessWidget {
                   ],
                 ],
 
-                // Tracking steps timeline
                 if (tracking != null && tracking.isNotEmpty) ...[
                   const Divider(height: 20),
                   Row(
@@ -624,7 +607,6 @@ class _ActiveOrderCard extends StatelessWidget {
                       .map((t) => _TrackingItem(tracking: t)),
                 ],
 
-                // Batalkan order (hanya saat masih menunggu)
                 if (status == 'menunggu') ...[
                   const SizedBox(height: 12),
                   OutlinedButton(
@@ -690,9 +672,6 @@ class _TrackingItem extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPLETED ORDER LIST
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _CompletedOrderList extends StatelessWidget {
   final List<Map<String, dynamic>> orders;
@@ -763,7 +742,6 @@ class _CompletedOrderCard extends StatelessWidget {
         : AppColors.statusBatal;
     final porter = order['porters'] as Map<String, dynamic>?;
 
-    // Bukti pengiriman bisa multiple (jemput + antar)
     final buktis = order['bukti_pengiriman'];
     final List<Map<String, dynamic>> buktiList = buktis is List
         ? buktis.cast<Map<String, dynamic>>()
@@ -806,7 +784,6 @@ class _CompletedOrderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -827,7 +804,7 @@ class _CompletedOrderCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppDimens.radiusRound),
                   ),
                   child: Text(
-                    isSelesai ? '✅ Selesai' : '❌ Dibatalkan',
+                    isSelesai ? 'Selesai' : 'Dibatalkan',
                     style: AppTextStyles.labelSm.copyWith(color: statusColor),
                   ),
                 ),
@@ -910,21 +887,19 @@ class _CompletedOrderCard extends StatelessWidget {
                   ),
                 ],
 
-                // Bukti foto jemput
                 if (buktiJemput != null) ...[
                   const Divider(height: 20),
                   Text(
-                    '📸 Foto Barang saat Penjemputan',
+                    'Foto Barang saat Penjemputan',
                     style: AppTextStyles.labelLg,
                   ),
                   const SizedBox(height: 8),
                   _FotoBuktiTile(url: buktiJemput['foto_url'] as String),
                 ],
 
-                // Bukti foto antar
                 if (buktiAntar != null) ...[
                   const Divider(height: 20),
-                  Text('📸 Bukti Pengiriman', style: AppTextStyles.labelLg),
+                  Text('Bukti Pengiriman', style: AppTextStyles.labelLg),
                   const SizedBox(height: 8),
                   _FotoBuktiTile(url: buktiAntar['foto_url'] as String),
                   if ((buktiAntar['keterangan'] as String? ?? '').isNotEmpty)
@@ -939,7 +914,6 @@ class _CompletedOrderCard extends StatelessWidget {
                     ),
                 ],
 
-                // Rating
                 if (hasRating) ...[
                   const Divider(height: 20),
                   Row(
@@ -1048,9 +1022,6 @@ class _FotoBuktiTile extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHARED WIDGETS
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _LokasiRow extends StatelessWidget {
   final IconData icon;

@@ -132,7 +132,7 @@ class RolePickerScreen extends StatelessWidget {
 
     final subtitle = isGoogleCompletion
         ? 'Pilih peran kamu terlebih dahulu untuk melanjutkan'
-        : 'Pilih peran kamu di Go-Dah';
+        : 'Pilih peran kamu di GoDah';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -172,11 +172,11 @@ class RolePickerScreen extends StatelessWidget {
               ),
               const SizedBox(height: 48),
 
-              // Student Role Card
               _RoleCard(
                 icon: Icons.school_rounded,
                 title: 'Mahasiswa (User)',
-                subtitle: 'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
+                subtitle:
+                    'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
                 color: const Color(0xFF1E3C72),
                 onTap: () {
                   if (isGoogleCompletion) {
@@ -189,11 +189,11 @@ class RolePickerScreen extends StatelessWidget {
 
               const SizedBox(height: 18),
 
-              // Porter Role Card
               _RoleCard(
                 icon: Icons.directions_run_rounded,
                 title: 'Porter (Kurir)',
-                subtitle: 'Mulai hasilkan uang dengan menerima pesanan angkut barang dari sesama mahasiswa.',
+                subtitle:
+                    'Mulai hasilkan uang dengan menerima pesanan angkut barang dari sesama mahasiswa.',
                 color: const Color(0xFF4CAF82),
                 onTap: () {
                   if (isGoogleCompletion) {
@@ -212,7 +212,9 @@ class RolePickerScreen extends StatelessWidget {
                   children: [
                     Text(
                       'Sudah punya akun? ',
-                      style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey600),
+                      style: AppTextStyles.bodyMd.copyWith(
+                        color: AppColors.grey600,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () => context.go('/login'),

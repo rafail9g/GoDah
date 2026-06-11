@@ -1,9 +1,5 @@
-/// Utilitas format tanggal dan waktu untuk Go-Dah.
 abstract final class AppDateUtils {
-  // ── Relative time ("time ago") ────────────────────────────────────
 
-  /// Kembalikan label relatif dari sebuah DateTime.
-  /// "Baru saja", "5 menit lalu", "2 jam lalu", "Kemarin", dll.
   static String timeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
@@ -18,47 +14,34 @@ abstract final class AppDateUtils {
     return '${(diff.inDays / 365).floor()} tahun lalu';
   }
 
-  // ── Format tanggal ─────────────────────────────────────────────────
 
-  /// "Senin, 18 Mei 2026"
   static String toFullDate(DateTime dt) =>
       '${_dayName(dt.weekday)}, ${dt.day} ${_monthName(dt.month)} ${dt.year}';
 
-  /// "18 Mei 2026"
   static String toShortDate(DateTime dt) =>
       '${dt.day} ${_monthName(dt.month)} ${dt.year}';
 
-  /// "18/05/2026"
   static String toNumericDate(DateTime dt) =>
       '${_pad(dt.day)}/${_pad(dt.month)}/${dt.year}';
 
-  /// "2026-05-18" (format ISO untuk API)
   static String toIsoDate(DateTime dt) =>
       '${dt.year}-${_pad(dt.month)}-${_pad(dt.day)}';
 
-  // ── Format waktu ────────────────────────────────────────────────────
 
-  /// "14:35"
   static String toTime(DateTime dt) =>
       '${_pad(dt.hour)}:${_pad(dt.minute)}';
 
-  /// "14:35:20"
   static String toTimeFull(DateTime dt) =>
       '${_pad(dt.hour)}:${_pad(dt.minute)}:${_pad(dt.second)}';
 
-  // ── Format gabungan ────────────────────────────────────────────────
 
-  /// "18 Mei 2026, 14:35"
   static String toDateTimeShort(DateTime dt) =>
       '${toShortDate(dt)}, ${toTime(dt)}';
 
-  /// "Senin, 18 Mei 2026 pukul 14:35"
   static String toDateTimeFull(DateTime dt) =>
       '${toFullDate(dt)} pukul ${toTime(dt)}';
 
-  // ── Duration ───────────────────────────────────────────────────────
 
-  /// "2 jam 15 menit"
   static String formatDuration(Duration duration) {
     final h = duration.inHours;
     final m = duration.inMinutes.remainder(60);
@@ -67,7 +50,6 @@ abstract final class AppDateUtils {
     return '$h jam $m menit';
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────
   static String _pad(int n) => n.toString().padLeft(2, '0');
 
   static String _monthName(int month) => const [

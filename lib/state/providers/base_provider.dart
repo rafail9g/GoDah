@@ -1,29 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../../core/utils/app_result.dart';
 
-/// Enum status loading untuk setiap provider.
 enum ViewState { idle, loading, success, error }
 
-/// Base class untuk semua Provider di Go-Dah.
-/// Sediakan setState, loading, error handling yang konsisten.
-///
-/// Contoh implementasi:
-/// ```dart
-/// class OrderProvider extends BaseProvider {
-///   List<Order> _orders = [];
-///   List<Order> get orders => _orders;
-///
-///   Future<void> fetchOrders() async {
-///     await runAsync(() async {
-///       final result = await _repository.getOrders();
-///       return result.map((list) {
-///         _orders = list;
-///         return list;
-///       });
-///     });
-///   }
-/// }
-/// ```
 abstract class BaseProvider extends ChangeNotifier {
   ViewState _state = ViewState.idle;
   AppError? _error;
@@ -38,7 +17,6 @@ abstract class BaseProvider extends ChangeNotifier {
   bool get isError   => _state == ViewState.error;
   bool get hasError  => _error != null;
 
-  // ── State transitions ──────────────────────────────────────────────
 
   void setLoading() {
     _state = ViewState.loading;
@@ -70,9 +48,7 @@ abstract class BaseProvider extends ChangeNotifier {
     _notify();
   }
 
-  // ── Run async with auto state management ──────────────────────────
 
-  /// Jalankan operasi async, auto-set loading/success/error.
   Future<AppResult<T>> runAsync<T>(
     Future<AppResult<T>> Function() operation, {
     bool setLoadingState = true,
@@ -93,13 +69,11 @@ abstract class BaseProvider extends ChangeNotifier {
     }
   }
 
-  // ── Safe notify ───────────────────────────────────────────────────
 
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
-  /// Update state tanpa mengubah ViewState utama.
   void update(VoidCallback fn) {
     fn();
     _notify();

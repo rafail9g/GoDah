@@ -2,7 +2,7 @@ class AdminModel {
   final String id;
   final String nama;
   final String email;
-  final String role; // 'superadmin' | 'admin'
+  final String role;
   final DateTime? createdAt;
 
   const AdminModel({

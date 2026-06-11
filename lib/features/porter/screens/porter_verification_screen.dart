@@ -25,11 +25,10 @@ class _PorterVerificationScreenState extends State<PorterVerificationScreen> {
   bool _submitted = false;
   
 
-  // Ambil foto KTP pakai KAMERA langsung
   Future<void> _ambilFotoKtp() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
-      source: ImageSource.camera, // kamera, bukan gallery
+      source: ImageSource.camera,
       imageQuality: 85,
       preferredCameraDevice: CameraDevice.rear,
     );
@@ -47,7 +46,6 @@ Future<void> _kirimVerifikasi() async {
   setState(() => _loading = true);
 
   try {
-    // 1. Upload foto KTP
     final fileName =
         'verifikasi/${porter.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -59,14 +57,12 @@ Future<void> _kirimVerifikasi() async {
         .from('dokumen-porter')
         .getPublicUrl(fileName);
 
-    // 2. Insert data verifikasi
     await _supabase.from('porter_verifikasi').insert({
       'porter_id': porter.id,
       'status': 'menunggu',
       'dokumen_url': dokumenUrl,
     });
 
-    // 3. Ambil 1 admin sebagai target (Perangkat B)
     final adminRes = await _supabase
         .from('admins')
         .select('id')
@@ -74,7 +70,6 @@ Future<void> _kirimVerifikasi() async {
         .limit(1)
         .maybeSingle();
 
-    // 4. Kirim notif hanya ke admin itu (bukan ke user/porter lain)
     if (adminRes != null) {
       await FcmService.instance.sendVerifikasiNotifToAdmin(
         porterNama: porter.nama,
@@ -108,10 +103,9 @@ Future<void> _kirimVerifikasi() async {
     if (porter == null) return const SizedBox();
 
     final sudahSubmit = _submitted || porter.statusVerifikasi != 'menunggu'
-        ? false // tampilkan form jika ditolak dan belum submit baru
+        ? false
         : false;
 
-    // Kalau sudah disetujui, tidak perlu form lagi
     final isApproved = porter.statusVerifikasi == 'disetujui';
     final isRejected = porter.statusVerifikasi == 'ditolak';
     final tampilForm = !isApproved && !_submitted;
@@ -128,7 +122,6 @@ Future<void> _kirimVerifikasi() async {
             const SizedBox(height: 24),
 
             if (tampilForm) ...[
-              // Info
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -164,7 +157,6 @@ Future<void> _kirimVerifikasi() async {
               Text('Foto Dokumen Identitas', style: AppTextStyles.h4),
               const SizedBox(height: 10),
 
-              // Area foto
               GestureDetector(
                 onTap: _ambilFotoKtp,
                 child: Container(
@@ -193,7 +185,6 @@ Future<void> _kirimVerifikasi() async {
                                 fit: BoxFit.cover,
                               ),
                             ),
-                            // Tombol foto ulang
                             Positioned(
                               bottom: 10,
                               right: 10,

@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  // Brand palette
   static const Color primary = Color(0xFF355C7D);
   static const Color secondary = Color(0xFF5C7A89);
   static const Color accent = Color(0xFF8FB996);
   static const Color background = Color(0xFFF4F7F5);
 
-  // Primary shades
   static const Color primary50 = Color(0xFFEBF0F5);
   static const Color primary100 = Color(0xFFBDD0DF);
   static const Color primary200 = Color(0xFF8FAFC9);
@@ -19,25 +17,21 @@ abstract final class AppColors {
   static const Color primary800 = Color(0xFF172E40);
   static const Color primary900 = Color(0xFF0D1E2B);
 
-  // Secondary shades
   static const Color secondary50 = Color(0xFFEDF2F4);
   static const Color secondary200 = Color(0xFF9AB6C1);
   static const Color secondary500 = Color(0xFF5C7A89);
   static const Color secondary700 = Color(0xFF3D5560);
 
-  // Accent shades
   static const Color accent50 = Color(0xFFEEF5EF);
   static const Color accent200 = Color(0xFFBFD9C2);
   static const Color accent500 = Color(0xFF8FB996);
   static const Color accent700 = Color(0xFF5A8860);
 
-  // Semantic
   static const Color success = Color(0xFF4CAF82);
   static const Color warning = Color(0xFFF5A623);
   static const Color error = Color(0xFFE05252);
   static const Color info = Color(0xFF4A90C4);
 
-  // Neutrals
   static const Color white = Color(0xFFFFFFFF);
   static const Color black = Color(0xFF0D0D0D);
   static const Color grey50 = Color(0xFFFAFAFA);
@@ -53,7 +47,6 @@ abstract final class AppColors {
 
   static const Color transparent = Colors.transparent;
 
-  // Order status colors
   static const Color statusMenunggu = Color(0xFFF5A623);
   static const Color statusDiterima = Color(0xFF4A90C4);
   static const Color statusMenujuLokasi = Color(0xFF9B59B6);
