@@ -833,7 +833,7 @@ class _VerifikasiListState extends State<_VerifikasiList>
     try {
       final res = await _supabase
           .from('porter_verifikasi')
-          .select('*, porters(id, nama, email, no_hp, foto_profil)')
+          .select('*, porters(id, nama, email, no_hp)')
           .eq('status', widget.status)
           .order('created_at', ascending: false);
 

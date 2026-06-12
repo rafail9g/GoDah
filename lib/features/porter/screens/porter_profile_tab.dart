@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
+
+final _supabase = Supabase.instance.client;
 
 class PorterProfileTab extends StatelessWidget {
   const PorterProfileTab({super.key});
@@ -225,6 +228,20 @@ class PorterProfileTab extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
                     child: Text(
+                      'RATING DARI USER',
+                      style: AppTextStyles.labelSm.copyWith(
+                        color: AppColors.grey500,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  _PorterRatingsSection(porterId: porter?.id),
+                  const SizedBox(height: 24),
+
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
+                    child: Text(
                       'PENGATURAN',
                       style: AppTextStyles.labelSm.copyWith(
                         color: AppColors.grey500,
@@ -292,6 +309,234 @@ class PorterProfileTab extends StatelessWidget {
     'ditolak' => 'Ditolak',
     _ => 'Menunggu Review',
   };
+}
+
+class _PorterRatingsSection extends StatefulWidget {
+  final String? porterId;
+
+  const _PorterRatingsSection({required this.porterId});
+
+  @override
+  State<_PorterRatingsSection> createState() => _PorterRatingsSectionState();
+}
+
+class _PorterRatingsSectionState extends State<_PorterRatingsSection> {
+  late Future<List<Map<String, dynamic>>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _loadRatings();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PorterRatingsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.porterId != widget.porterId) {
+      _future = _loadRatings();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadRatings() async {
+    final porterId = widget.porterId;
+    if (porterId == null || porterId.isEmpty) return [];
+
+    try {
+      final res = await _supabase
+          .from('ratings')
+          .select('''
+            id,
+            nilai,
+            ulasan,
+            created_at,
+            users(nama),
+            orders(jenis_barang, status)
+          ''')
+          .eq('porter_id', porterId)
+          .order('created_at', ascending: false)
+          .limit(5);
+
+      return List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      final res = await _supabase
+          .from('ratings')
+          .select('*')
+          .eq('porter_id', porterId)
+          .order('created_at', ascending: false)
+          .limit(5);
+      return List<Map<String, dynamic>>.from(res);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _InfoCard(
+            children: [
+              Padding(
+                padding: EdgeInsets.all(18),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              ),
+            ],
+          );
+        }
+
+        final ratings = snapshot.data ?? [];
+        if (ratings.isEmpty) {
+          return _InfoCard(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.star_border_rounded,
+                      color: AppColors.grey400,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Belum ada rating dari user',
+                        style: AppTextStyles.bodyMd.copyWith(
+                          color: AppColors.grey500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
+        final total = ratings.fold<num>(
+          0,
+          (sum, item) => sum + (item['nilai'] as num? ?? 0),
+        );
+        final average = total / ratings.length;
+
+        return _InfoCard(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                    ),
+                    child: const Icon(
+                      Icons.star_rounded,
+                      color: AppColors.warning,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          average.toStringAsFixed(1),
+                          style: AppTextStyles.h2.copyWith(
+                            color: AppColors.grey900,
+                          ),
+                        ),
+                        Text(
+                          '${ratings.length} rating terbaru',
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.grey500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      5,
+                      (i) => Icon(
+                        i < average.round()
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        color: AppColors.warning,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ...ratings.map((rating) => _RatingReviewRow(rating: rating)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RatingReviewRow extends StatelessWidget {
+  final Map<String, dynamic> rating;
+
+  const _RatingReviewRow({required this.rating});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = rating['users'] as Map<String, dynamic>? ?? {};
+    final order = rating['orders'] as Map<String, dynamic>? ?? {};
+    final nilai = (rating['nilai'] as num? ?? 0).toInt();
+    final ulasan = rating['ulasan'] as String?;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  user['nama'] as String? ?? 'User',
+                  style: AppTextStyles.labelLg,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    i < nilai ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: AppColors.warning,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if ((order['jenis_barang'] as String?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 2),
+            Text(
+              order['jenis_barang'] as String,
+              style: AppTextStyles.caption.copyWith(color: AppColors.grey500),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            ulasan?.trim().isNotEmpty == true ? ulasan!.trim() : 'Tidak ada ulasan',
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.grey600),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _VerifBadge extends StatelessWidget {
