@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
@@ -177,7 +179,8 @@ class _OrdersCrudTab extends StatelessWidget {
     title: 'Data Order',
     table: 'orders',
     select: '*, users(nama), porters(nama)',
-    editableFields: ['status', 'catatan'],
+    editableFields: ['lokasi_tujuan', 'status', 'catatan'],
+    requiredFields: ['lokasi_tujuan', 'status'],
     titleField: 'jenis_barang',
     subtitleField: 'status',
     lineFields: [
@@ -355,6 +358,178 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     }
   }
 
+  Future<void> _editOrderDestinationOnMap(Map<String, dynamic> item) async {
+    final tujuanCtrl = TextEditingController(
+      text: _value(item, 'lokasi_tujuan') == '-'
+          ? ''
+          : _value(item, 'lokasi_tujuan'),
+    );
+    final latTujuan = _numValue(item['lat_tujuan']);
+    final lngTujuan = _numValue(item['lng_tujuan']);
+    final latJemput = _numValue(item['lat_jemput']);
+    final lngJemput = _numValue(item['lng_jemput']);
+
+    LatLng selected = LatLng(
+      latTujuan ?? latJemput ?? -7.9797,
+      lngTujuan ?? lngJemput ?? 113.6175,
+    );
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        bool saving = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text('Ubah Tujuan Pesanan'),
+              content: SizedBox(
+                width: MediaQuery.sizeOf(ctx).width * 0.9,
+                height: 430,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: tujuanCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama / Alamat Tujuan',
+                        hintText: 'Contoh: Gedung Fakultas Teknik',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: FlutterMap(
+                          options: MapOptions(
+                            initialCenter: selected,
+                            initialZoom: 16,
+                            onTap: (_, latlng) {
+                              setDialogState(() {
+                                selected = latlng;
+                                tujuanCtrl.text =
+                                    'Lat: ${latlng.latitude.toStringAsFixed(5)}, Lng: ${latlng.longitude.toStringAsFixed(5)}';
+                              });
+                            },
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.example.go_dah',
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                if (latJemput != null && lngJemput != null)
+                                  Marker(
+                                    point: LatLng(latJemput, lngJemput),
+                                    width: 42,
+                                    height: 42,
+                                    child: const Icon(
+                                      Icons.radio_button_checked_rounded,
+                                      color: AppColors.success,
+                                      size: 34,
+                                    ),
+                                  ),
+                                Marker(
+                                  point: selected,
+                                  width: 42,
+                                  height: 42,
+                                  child: const Icon(
+                                    Icons.location_on_rounded,
+                                    color: AppColors.error,
+                                    size: 38,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tap peta untuk memilih titik tujuan baru.',
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(ctx, false),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final tujuan = tujuanCtrl.text.trim();
+                          if (tujuan.isEmpty) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Tujuan pesanan wajib diisi.'),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => saving = true);
+                          try {
+                            await _supabase
+                                .from('orders')
+                                .update({
+                                  'lokasi_tujuan': tujuan,
+                                  'lat_tujuan': selected.latitude,
+                                  'lng_tujuan': selected.longitude,
+                                })
+                                .eq('id', item['id']);
+
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            setDialogState(() => saving = false);
+                            if (!ctx.mounted) return;
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Gagal menyimpan tujuan: $e'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_rounded, size: 18),
+                  label: Text(saving ? 'Menyimpan...' : 'Simpan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    tujuanCtrl.dispose();
+
+    if (saved == true) {
+      _showSnack('Tujuan pesanan berhasil diperbarui.', AppColors.success);
+      _load();
+    }
+  }
+
   Future<void> _delete(Map<String, dynamic> item) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -389,10 +564,17 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
 
   dynamic _parseFieldValue(String field, String value) {
     final trimmed = value.trim();
-    if (field == 'is_aktif')
+    if (field == 'is_aktif') {
       return trimmed.toLowerCase() == 'true' || trimmed == '1';
+    }
     if (trimmed.isEmpty) return null;
     return trimmed;
+  }
+
+  double? _numValue(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
   }
 
   String _value(Map<String, dynamic> item, String field) {
@@ -419,10 +601,10 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     'status_verifikasi' => 'Status Verifikasi',
     'is_aktif' => 'Aktif (true/false)',
     'catatan' => 'Catatan',
+    'lokasi_tujuan' => 'Tujuan Pesanan',
     'users.nama' => 'User',
     'porters.nama' => 'Porter',
     'lokasi_jemput' => 'Jemput',
-    'lokasi_tujuan' => 'Tujuan',
     'total_biaya' => 'Biaya',
     _ => field,
   };
@@ -522,6 +704,14 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                                   ],
                                 ),
                               ),
+                              if (widget.table == 'orders')
+                                IconButton(
+                                  onPressed: () =>
+                                      _editOrderDestinationOnMap(item),
+                                  icon: const Icon(Icons.map_outlined),
+                                  color: AppColors.info,
+                                  tooltip: 'Ubah tujuan lewat peta',
+                                ),
                               IconButton(
                                 onPressed: () => _upsert(item),
                                 icon: const Icon(Icons.edit_outlined),
