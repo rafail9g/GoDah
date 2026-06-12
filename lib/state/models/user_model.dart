@@ -7,7 +7,6 @@ class UserModel {
   final String noHp;
   final String? alamat;
   final String status;
-  final String? fotoProfil;
   final DateTime? createdAt;
 
   const UserModel({
@@ -17,7 +16,6 @@ class UserModel {
     required this.noHp,
     this.alamat,
     this.status = 'aktif',
-    this.fotoProfil,
     this.createdAt,
   });
 
@@ -35,7 +33,6 @@ class UserModel {
     noHp:        json['no_hp'] as String,
     alamat:      json['alamat'] as String?,
     status:      json['status'] as String? ?? 'aktif',
-    fotoProfil:  json['foto_profil'] as String?,
     createdAt:   json['created_at'] != null
         ? DateTime.tryParse(json['created_at'] as String)
         : null,
@@ -48,7 +45,6 @@ class UserModel {
     'no_hp':       noHp,
     'alamat':      alamat,
     'status':      status,
-    'foto_profil': fotoProfil,
     'created_at':  createdAt?.toIso8601String(),
   };
 
@@ -59,7 +55,6 @@ class UserModel {
     String? noHp,
     String? alamat,
     String? status,
-    String? fotoProfil,
     DateTime? createdAt,
   }) =>
       UserModel(
@@ -69,7 +64,6 @@ class UserModel {
         noHp:       noHp       ?? this.noHp,
         alamat:     alamat     ?? this.alamat,
         status:     status     ?? this.status,
-        fotoProfil: fotoProfil ?? this.fotoProfil,
         createdAt:  createdAt  ?? this.createdAt,
       );
 

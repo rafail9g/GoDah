@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 @pragma('vm:entry-point')
@@ -17,6 +18,18 @@ class FcmService {
   final _messaging = FirebaseMessaging.instance;
   final _localNotif = FlutterLocalNotificationsPlugin();
   final _supabase = Supabase.instance.client;
+
+  static const String _configuredApiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://api-godah-production.up.railway.app',
+  );
+
+  static String get _apiBaseUrl => _configuredApiBaseUrl.replaceFirst(
+        RegExp(r'/+$'),
+        '',
+      );
+
+  Uri _apiEndpoint(String path) => Uri.parse('$_apiBaseUrl$path');
 
   static const _channelId = 'godah_orders';
   static const _channelName = 'GoDah Orders';
@@ -234,17 +247,14 @@ class FcmService {
     required String targetAdminId,
   }) async {
     try {
-      await _supabase.functions.invoke(
-        'send-fcm-notification',
-        body: {
-          'target_admin_id': targetAdminId,
-          'porter_nama': porterNama,
-          'porter_id': porterId,
-          'title': 'Pengajuan Verifikasi Porter Baru',
-          'body':
-              '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
-        },
-      );
+      await _sendBackendNotification({
+        'target_admin_id': targetAdminId,
+        'porter_nama': porterNama,
+        'porter_id': porterId,
+        'title': 'Pengajuan Verifikasi Porter Baru',
+        'body': '$porterNama mengajukan verifikasi dokumen. Silakan ditinjau.',
+        'type': 'verification',
+      });
       debugPrint('Notif terkirim ke admin $targetAdminId');
     } catch (e) {
       debugPrint('Gagal kirim notif: $e');
@@ -259,21 +269,18 @@ class FcmService {
     required String jenisBrg,
   }) async {
     try {
-      await _supabase.functions.invoke(
-        'send-fcm-notification',
-        body: {
-          'target_porter_id': targetPorterId,
-          'title': 'Order Baru Masuk!',
-          'body':
-              'Ada order baru: $jenisBrg dari $lokasiJemput ke $lokasiTujuan. Segera terima!',
-          'type': 'order_new',
-          'data': {
-            'order_id': orderId,
-            'lokasi_jemput': lokasiJemput,
-            'lokasi_tujuan': lokasiTujuan,
-          },
+      await _sendBackendNotification({
+        'target_porter_id': targetPorterId,
+        'title': 'Order Baru Masuk!',
+        'body':
+            'Ada order baru: $jenisBrg dari $lokasiJemput ke $lokasiTujuan. Segera terima!',
+        'type': 'order_new',
+        'data': {
+          'order_id': orderId,
+          'lokasi_jemput': lokasiJemput,
+          'lokasi_tujuan': lokasiTujuan,
         },
-      );
+      });
       debugPrint('Notif order baru terkirim ke porter $targetPorterId');
     } catch (e) {
       debugPrint('Gagal kirim notif order baru: $e');
@@ -290,19 +297,34 @@ class FcmService {
     if (title == null) return;
 
     try {
-      await _supabase.functions.invoke(
-        'send-fcm-notification',
-        body: {
-          'target_user_id': targetUserId,
-          'title': title,
-          'body': body,
-          'type': 'order_status',
-          'data': {'order_id': orderId, 'status': status},
-        },
-      );
+      await _sendBackendNotification({
+        'target_user_id': targetUserId,
+        'title': title,
+        'body': body,
+        'type': 'order_status',
+        'data': {'order_id': orderId, 'status': status},
+      });
       debugPrint('Notif status $status terkirim ke user $targetUserId');
     } catch (e) {
       debugPrint('Gagal kirim notif status order: $e');
+    }
+  }
+
+  Future<void> _sendBackendNotification(Map<String, dynamic> body) async {
+    final response = await http.post(
+      _apiEndpoint('/notifications/send'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+
+    debugPrint('send notification status: ${response.statusCode}');
+    debugPrint('send notification body: ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Backend notification failed: ${response.body}');
     }
   }
 

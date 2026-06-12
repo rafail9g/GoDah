@@ -6,7 +6,17 @@ class PaymentService {
   PaymentService._();
   static final PaymentService instance = PaymentService._();
 
-  static const String _baseUrl = 'http://192.168.1.8:3000';
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'PAYMENT_API_BASE_URL',
+    defaultValue: 'https://api-godah-production.up.railway.app',
+  );
+
+  static String get _baseUrl => _configuredBaseUrl.replaceFirst(
+        RegExp(r'/+$'),
+        '',
+      );
+
+  Uri _endpoint(String path) => Uri.parse('$_baseUrl$path');
 
   Future<PaymentCreateResult?> createPayment({
     required String orderId,
@@ -16,7 +26,7 @@ class PaymentService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/payments/create'),
+        _endpoint('/payments/create'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -55,7 +65,7 @@ class PaymentService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/payments/mark-paid-manual'),
+        _endpoint('/payments/mark-paid-manual'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -79,7 +89,7 @@ class PaymentService {
   Future<String?> checkPaymentStatus(String orderId) async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/payments/order/$orderId'),
+        _endpoint('/payments/order/$orderId'),
         headers: {'Accept': 'application/json'},
       );
 

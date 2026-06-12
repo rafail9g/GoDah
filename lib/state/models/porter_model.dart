@@ -3,7 +3,6 @@ class PorterModel {
   final String nama;
   final String email;
   final String noHp;
-  final String? fotoProfil;
   final String statusVerifikasi;
   final bool isAktif;
   final double? latitude;
@@ -16,7 +15,6 @@ class PorterModel {
     required this.nama,
     required this.email,
     required this.noHp,
-    this.fotoProfil,
     this.statusVerifikasi = 'menunggu',
     this.isAktif = false,
     this.latitude,
@@ -34,7 +32,6 @@ class PorterModel {
         nama: json['nama'] as String,
         email: json['email'] as String,
         noHp: json['no_hp'] as String,
-        fotoProfil: json['foto_profil'] as String?,
         statusVerifikasi:
             json['status_verifikasi'] as String? ?? 'menunggu',
         isAktif: json['is_aktif'] as bool? ?? false,
@@ -51,7 +48,6 @@ class PorterModel {
         'nama': nama,
         'email': email,
         'no_hp': noHp,
-        'foto_profil': fotoProfil,
         'status_verifikasi': statusVerifikasi,
         'is_aktif': isAktif,
         'latitude': latitude,

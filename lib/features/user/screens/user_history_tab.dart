@@ -63,7 +63,7 @@ class _UserHistoryTabState extends State<UserHistoryTab>
           .from('orders')
           .select('''
             *,
-            porters(id, nama, no_hp, foto_profil, latitude, longitude),
+            porters(id, nama, no_hp, latitude, longitude),
             order_tracking(status_perjalanan, waktu_update, catatan)
           ''')
           .eq('user_id', user.id)
@@ -80,7 +80,7 @@ class _UserHistoryTabState extends State<UserHistoryTab>
           .from('orders')
           .select('''
             *,
-            porters(id, nama, no_hp, foto_profil),
+            porters(id, nama, no_hp),
             bukti_pengiriman(foto_url, keterangan, jenis_bukti),
             ratings(id, order_id, nilai, ulasan)
           ''')

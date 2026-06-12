@@ -25,7 +25,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -80,6 +80,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             Tab(text: 'User'),
             Tab(text: 'Porter'),
             Tab(text: 'Order'),
+            Tab(text: 'Rating'),
           ],
         ),
       ),
@@ -90,6 +91,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           _UsersCrudTab(),
           _PortersCrudTab(),
           _OrdersCrudTab(),
+          _RatingsAdminTab(),
         ],
       ),
     );
@@ -186,6 +188,28 @@ class _OrdersCrudTab extends StatelessWidget {
       'lokasi_jemput',
       'lokasi_tujuan',
       'total_biaya',
+    ],
+    allowAdd: false,
+  );
+}
+
+class _RatingsAdminTab extends StatelessWidget {
+  const _RatingsAdminTab();
+
+  @override
+  Widget build(BuildContext context) => const _SimpleAdminTable(
+    title: 'Rating Porter',
+    table: 'ratings',
+    select: '*, users(nama), porters(nama), orders(jenis_barang, status)',
+    editableFields: ['nilai', 'ulasan'],
+    titleField: 'porters.nama',
+    subtitleField: 'users.nama',
+    lineFields: [
+      'nilai',
+      'ulasan',
+      'orders.jenis_barang',
+      'orders.status',
+      'created_at',
     ],
     allowAdd: false,
   );
@@ -391,6 +415,7 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     final trimmed = value.trim();
     if (field == 'is_aktif')
       return trimmed.toLowerCase() == 'true' || trimmed == '1';
+    if (field == 'nilai') return int.tryParse(trimmed) ?? 0;
     if (trimmed.isEmpty) return null;
     return trimmed;
   }
@@ -424,6 +449,11 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     'lokasi_jemput' => 'Jemput',
     'lokasi_tujuan' => 'Tujuan',
     'total_biaya' => 'Biaya',
+    'nilai' => 'Rating',
+    'ulasan' => 'Ulasan',
+    'created_at' => 'Tanggal',
+    'orders.jenis_barang' => 'Barang',
+    'orders.status' => 'Status Order',
     _ => field,
   };
 
@@ -643,7 +673,7 @@ class _VerifikasiListState extends State<_VerifikasiList>
     try {
       final res = await _supabase
           .from('porter_verifikasi')
-          .select('*, porters(id, nama, email, no_hp, foto_profil)')
+          .select('*, porters(id, nama, email, no_hp)')
           .eq('status', widget.status)
           .order('created_at', ascending: false);
 
