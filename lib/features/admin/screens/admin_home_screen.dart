@@ -9,7 +9,6 @@ import 'dart:async';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/services/fcm_service.dart';
 import '../../../state/providers/auth_provider.dart';
 
 final _supabase = Supabase.instance.client;
@@ -147,13 +146,12 @@ class _UsersCrudTab extends StatelessWidget {
     title: 'Data User',
     table: 'users',
     select: '*',
-    editableFields: ['status'],
-    requiredFields: ['status'],
+    editableFields: ['nama', 'email', 'no_hp', 'alamat', 'status'],
+    requiredFields: ['nama', 'email', 'no_hp'],
+    insertDefaults: {'password_hash': 'admin_created'},
     titleField: 'nama',
     subtitleField: 'email',
     lineFields: ['no_hp', 'alamat', 'status'],
-    allowAdd: false,
-    allowDelete: false,
   );
 }
 
@@ -165,19 +163,11 @@ class _PortersCrudTab extends StatelessWidget {
     title: 'Data Porter',
     table: 'porters',
     select: '*',
-    editableFields: ['status'],
-    requiredFields: ['status'],
+    editableFields: ['nama', 'email', 'no_hp', 'status_verifikasi', 'is_aktif'],
+    requiredFields: ['nama', 'email', 'no_hp'],
     titleField: 'nama',
     subtitleField: 'email',
-    lineFields: [
-      'no_hp',
-      'status',
-      'status_verifikasi',
-      'is_aktif',
-      'total_selesai',
-    ],
-    allowAdd: false,
-    allowDelete: false,
+    lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
   );
 }
 
@@ -215,7 +205,6 @@ class _SimpleAdminTable extends StatefulWidget {
   final String subtitleField;
   final List<String> lineFields;
   final bool allowAdd;
-  final bool allowDelete;
 
   const _SimpleAdminTable({
     required this.title,
@@ -228,7 +217,6 @@ class _SimpleAdminTable extends StatefulWidget {
     required this.subtitleField,
     required this.lineFields,
     this.allowAdd = true,
-    this.allowDelete = true,
   });
 
   @override
@@ -302,36 +290,12 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                 .map(
                   (field) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _fieldOptions(field) == null
-                        ? TextField(
-                            controller: controllers[field],
-                            decoration: InputDecoration(
-                              labelText: _fieldLabel(field),
-                            ),
-                          )
-                        : DropdownButtonFormField<String>(
-                            value:
-                                controllers[field]?.text.trim().isNotEmpty ==
-                                    true
-                                ? controllers[field]!.text.trim()
-                                : null,
-                            decoration: InputDecoration(
-                              labelText: _fieldLabel(field),
-                            ),
-                            items: _fieldOptions(field)!
-                                .map(
-                                  (option) => DropdownMenuItem(
-                                    value: option,
-                                    child: Text(_statusLabel(option)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                controllers[field]?.text = value;
-                              }
-                            },
-                          ),
+                    child: TextField(
+                      controller: controllers[field],
+                      decoration: InputDecoration(
+                        labelText: _fieldLabel(field),
+                      ),
+                    ),
                   ),
                 )
                 .toList(),
@@ -375,10 +339,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
       final payload = <String, dynamic>{...widget.insertDefaults};
       for (final entry in controllers.entries) {
         payload[entry.key] = _parseFieldValue(entry.key, entry.value.text);
-      }
-      if (widget.table == 'porters' &&
-          (payload['status'] == 'nonaktif' || payload['status'] == 'diblokir')) {
-        payload['is_aktif'] = false;
       }
 
       if (item == null) {
@@ -611,31 +571,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     return trimmed;
   }
 
-  List<String>? _fieldOptions(String field) {
-    if (field == 'status' &&
-        (widget.table == 'users' || widget.table == 'porters')) {
-      return const ['aktif', 'nonaktif', 'diblokir'];
-    }
-
-    if (field == 'status' && widget.table == 'orders') {
-      return const [
-        'menunggu',
-        'diterima',
-        'menuju_lokasi',
-        'dalam_perjalanan',
-        'sampai_tujuan',
-        'selesai',
-        'batal',
-      ];
-    }
-
-    if (field == 'status_verifikasi') {
-      return const ['menunggu', 'disetujui', 'ditolak'];
-    }
-
-    return null;
-  }
-
   double? _numValue(dynamic value) {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value);
@@ -672,22 +607,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     'lokasi_jemput' => 'Jemput',
     'total_biaya' => 'Biaya',
     _ => field,
-  };
-
-  String _statusLabel(String status) => switch (status) {
-    'aktif' => 'Aktif',
-    'nonaktif' => 'Dinonaktifkan',
-    'diblokir' => 'Diblokir',
-    'menunggu' => 'Menunggu',
-    'diterima' => 'Diterima',
-    'menuju_lokasi' => 'Menuju Lokasi',
-    'dalam_perjalanan' => 'Dalam Perjalanan',
-    'sampai_tujuan' => 'Sampai Tujuan',
-    'selesai' => 'Selesai',
-    'batal' => 'Batal',
-    'disetujui' => 'Disetujui',
-    'ditolak' => 'Ditolak',
-    _ => status,
   };
 
   void _showSnack(String message, Color color) {
@@ -799,15 +718,11 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                                 color: AppColors.primary,
                                 tooltip: 'Edit',
                               ),
-                              if (widget.allowDelete)
-                                IconButton(
-                                  onPressed: () => _delete(item),
-                                  icon: const Icon(
-                                    Icons.delete_outline_rounded,
-                                  ),
-                                  color: AppColors.error,
-                                  tooltip: 'Hapus',
-                                ),
+                              IconButton(
+                                onPressed: () => _delete(item),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                color: AppColors.error,
+                              ),
                             ],
                           ),
                           const Divider(height: 18),
@@ -918,7 +833,7 @@ class _VerifikasiListState extends State<_VerifikasiList>
     try {
       final res = await _supabase
           .from('porter_verifikasi')
-          .select('*, porters(id, nama, email, no_hp)')
+          .select('*, porters(id, nama, email, no_hp, foto_profil)')
           .eq('status', widget.status)
           .order('created_at', ascending: false);
 
@@ -1047,11 +962,6 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
           .update({'status_verifikasi': 'disetujui', 'is_aktif': true})
           .eq('id', widget.porterId);
 
-      await FcmService.instance.sendVerifikasiStatusNotifToPorter(
-        targetPorterId: widget.porterId,
-        status: 'disetujui',
-      );
-
       if (!mounted) return;
       _showSnack('${widget.nama} berhasil diverifikasi', AppColors.success);
       widget.onRefresh();
@@ -1126,15 +1036,6 @@ class _VerifikasiCardState extends State<_VerifikasiCard> {
           .from('porters')
           .update({'status_verifikasi': 'ditolak', 'is_aktif': false})
           .eq('id', widget.porterId);
-
-      final catatan = catatanCtrl.text.trim().isEmpty
-          ? 'Dokumen ditolak oleh admin.'
-          : catatanCtrl.text.trim();
-      await FcmService.instance.sendVerifikasiStatusNotifToPorter(
-        targetPorterId: widget.porterId,
-        status: 'ditolak',
-        catatan: catatan,
-      );
 
       if (!mounted) return;
       _showSnack('${widget.nama} ditolak', AppColors.warning);
