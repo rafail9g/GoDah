@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+const _supabaseUrl = 'https://eohytcqfugefhjydhtrp.supabase.co'; // ganti dengan URL project kamu
+const _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaHl0Y3FmdWdlZmhqeWRodHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTI4MDQsImV4cCI6MjA5NDU4ODgwNH0.l6uozOQW8jk_8WTB9ytv87oGDjLNwqrbISUsPQ33Oz8';
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
   debugPrint('Background FCM: ${message.notification?.title}');
@@ -342,24 +345,58 @@ class FcmService {
     }
   }
 
-  Future<void> _sendBackendNotification(Map<String, dynamic> body) async {
-    final response = await http.post(
-      _apiEndpoint('/notifications/send'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(body),
-    );
 
-    debugPrint('send notification status: ${response.statusCode}');
-    debugPrint('send notification body: ${response.body}');
+Future<void> _sendBackendNotification(Map<String, dynamic> body) async {
+  final response = await http.post(
+    Uri.parse('$_supabaseUrl/functions/v1/send-fcm-notification'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_supabaseAnonKey',
+    },
+    body: jsonEncode(body),
+  );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Backend notification failed: ${response.body}');
-    }
+  debugPrint('send notification status: ${response.statusCode}');
+  debugPrint('send notification body: ${response.body}');
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw Exception('Notification failed: ${response.body}');
   }
+}
+Future<void> saveFcmToken({
+  required String userId,
+  required String role,
+}) async {
+  try {
+    final token = await _messaging.getToken();
+    if (token == null) {
+      debugPrint('FCM token null, skip save');
+      return;
+    }
 
+    debugPrint('Saving FCM token for $role/$userId: $token');
+
+    await _supabase
+        .from(role)
+        .update({
+          'fcm_token': token,
+          'fcm_token_updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
+
+    debugPrint('FCM token saved successfully');
+
+    _messaging.onTokenRefresh.listen((newToken) async {
+      await _supabase
+          .from(role)
+          .update({'fcm_token': newToken})
+          .eq('id', userId);
+      debugPrint('FCM token refreshed: $newToken');
+    });
+  } catch (e) {
+    debugPrint('Error saving FCM token: $e');
+  }
+}
   (String?, String) _getStatusNotifContent(String status, String? porterNama) {
     final nama = porterNama ?? 'Porter';
     return switch (status) {
