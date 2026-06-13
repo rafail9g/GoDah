@@ -294,6 +294,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
       final porters = await _supabase
           .from('porters')
           .select('id')
+          .eq('status', 'aktif')
           .eq('is_aktif', true)
           .eq('status_verifikasi', 'disetujui')
           .not('fcm_token', 'is', null)

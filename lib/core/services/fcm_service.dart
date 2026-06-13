@@ -107,6 +107,9 @@ class FcmService {
     debugPrint('Foreground FCM: ${message.notification?.title}');
     final notification = message.notification;
     if (notification == null) return;
+    final isVerificationNotif =
+        message.data['type'] == 'verification' ||
+        message.data['type'] == 'verification_status';
 
     _localNotif.show(
       id: notification.hashCode,
@@ -114,8 +117,8 @@ class FcmService {
       body: notification.body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
+          isVerificationNotif ? _verificationChannelId : _channelId,
+          isVerificationNotif ? _verificationChannelName : _channelName,
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -258,6 +261,35 @@ class FcmService {
       debugPrint('Notif terkirim ke admin $targetAdminId');
     } catch (e) {
       debugPrint('Gagal kirim notif: $e');
+    }
+  }
+
+  Future<void> sendVerifikasiStatusNotifToPorter({
+    required String targetPorterId,
+    required String status,
+    String? catatan,
+  }) async {
+    final approved = status == 'disetujui';
+    final title = approved
+        ? 'Verifikasi Porter Disetujui'
+        : 'Verifikasi Porter Ditolak';
+    final body = approved
+        ? 'Akun porter kamu sudah diverifikasi. Kamu sudah bisa menerima order.'
+        : (catatan?.trim().isNotEmpty == true
+              ? 'Dokumen kamu ditolak: ${catatan!.trim()}'
+              : 'Dokumen kamu ditolak. Silakan upload ulang dokumen yang jelas.');
+
+    try {
+      await _sendBackendNotification({
+        'target_porter_id': targetPorterId,
+        'title': title,
+        'body': body,
+        'type': 'verification_status',
+        'data': {'status': status},
+      });
+      debugPrint('Notif verifikasi $status terkirim ke porter $targetPorterId');
+    } catch (e) {
+      debugPrint('Gagal kirim notif status verifikasi: $e');
     }
   }
 

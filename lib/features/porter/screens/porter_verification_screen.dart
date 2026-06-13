@@ -66,15 +66,13 @@ Future<void> _kirimVerifikasi() async {
     final adminRes = await _supabase
         .from('admins')
         .select('id')
-        .not('fcm_token', 'is', null)
-        .limit(1)
-        .maybeSingle();
+        .not('fcm_token', 'is', null);
 
-    if (adminRes != null) {
+    for (final admin in List<Map<String, dynamic>>.from(adminRes)) {
       await FcmService.instance.sendVerifikasiNotifToAdmin(
         porterNama: porter.nama,
         porterId: porter.id,
-        targetAdminId: adminRes['id'] as String,
+        targetAdminId: admin['id'] as String,
       );
     }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,6 +20,8 @@ class AuthProvider extends ChangeNotifier {
   AdminModel? _currentAdmin;
   bool _isLoading = true;
   String? _role;
+  String? _lastAccountBlockMessage;
+  String? _lastProfileLoadErrorMessage;
 
   bool _isManualLogin = false;
 
@@ -91,6 +95,8 @@ class AuthProvider extends ChangeNotifier {
     _currentPorter = null;
     _currentAdmin = null;
     _role = null;
+    _lastAccountBlockMessage = null;
+    _lastProfileLoadErrorMessage = null;
 
     for (int attempt = 0; attempt < 3; attempt++) {
       try {
@@ -101,10 +107,20 @@ class AuthProvider extends ChangeNotifier {
             .maybeSingle();
 
         if (userRes != null) {
-          _currentUser = UserModel.fromJson(userRes);
+          final user = UserModel.fromJson(userRes);
+          if (_isRestrictedStatus(user.status)) {
+            _lastAccountBlockMessage = _blockedAccountMessage(
+              'user',
+              user.status,
+            );
+            await _supabase.auth.signOut();
+            return;
+          }
+
+          _currentUser = user;
           _currentPorter = null;
           _role = 'user';
-          await FcmService.instance.saveUserToken(_currentUser!.id);
+          unawaited(FcmService.instance.saveUserToken(_currentUser!.id));
           return;
         }
 
@@ -115,17 +131,28 @@ class AuthProvider extends ChangeNotifier {
             .maybeSingle();
 
         if (porterRes != null) {
-          _currentPorter = PorterModel.fromJson(porterRes);
+          final porter = PorterModel.fromJson(porterRes);
+          if (_isRestrictedStatus(porter.status)) {
+            _lastAccountBlockMessage = _blockedAccountMessage(
+              'porter',
+              porter.status,
+            );
+            await _supabase.auth.signOut();
+            return;
+          }
+
+          _currentPorter = porter;
           _currentUser = null;
           _role = 'porter';
-          await FcmService.instance.savePorterToken(_currentPorter!.id);
+          unawaited(FcmService.instance.savePorterToken(_currentPorter!.id));
           return;
         }
 
         if (attempt < 2) {
           await Future.delayed(const Duration(seconds: 1));
         }
-      } catch (_) {
+      } catch (e) {
+        _lastProfileLoadErrorMessage = 'Gagal memuat profil akun: $e';
         if (attempt < 2) {
           await Future.delayed(const Duration(seconds: 1));
         }
@@ -153,7 +180,7 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = null;
       _currentPorter = null;
       _role = 'admin';
-      await FcmService.instance.saveAdminToken(_currentAdmin!.id);
+      unawaited(FcmService.instance.saveAdminToken(_currentAdmin!.id));
     } catch (_) {}
   }
 
@@ -200,6 +227,10 @@ class AuthProvider extends ChangeNotifier {
 
         await _loadProfile(authUser.id);
 
+        if (_lastAccountBlockMessage != null) {
+          return Failure(AppError(message: _lastAccountBlockMessage!));
+        }
+
         if (_currentPorter == null) {
           return Failure(AppError(message: 'Gagal membuat profil porter.'));
         }
@@ -217,6 +248,10 @@ class AuthProvider extends ChangeNotifier {
       });
 
       await _loadProfile(authUser.id);
+
+      if (_lastAccountBlockMessage != null) {
+        return Failure(AppError(message: _lastAccountBlockMessage!));
+      }
 
       if (_currentUser == null) {
         return Failure(AppError(message: 'Gagal membuat profil mahasiswa.'));
@@ -362,9 +397,17 @@ class AuthProvider extends ChangeNotifier {
 
       _isManualLogin = false;
 
+      if (_lastAccountBlockMessage != null) {
+        return Failure(AppError(message: _lastAccountBlockMessage!));
+      }
+
       if (_role == null) {
         return Failure(
-          AppError(message: 'Akun tidak ditemukan. Hubungi admin.'),
+          AppError(
+            message:
+                _lastProfileLoadErrorMessage ??
+                'Akun tidak ditemukan. Hubungi admin.',
+          ),
         );
       }
 
@@ -405,7 +448,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_adminSessionKey, _currentAdmin!.id);
-      await FcmService.instance.saveAdminToken(_currentAdmin!.id);
+      unawaited(FcmService.instance.saveAdminToken(_currentAdmin!.id));
 
       return Success(_currentAdmin!);
     } on PostgrestException catch (e) {
@@ -464,6 +507,15 @@ class AuthProvider extends ChangeNotifier {
 
     await _loadProfile(_currentUser!.id);
     notifyListeners();
+  }
+
+  bool _isRestrictedStatus(String status) =>
+      status == 'nonaktif' || status == 'diblokir';
+
+  String _blockedAccountMessage(String role, String status) {
+    final roleLabel = role == 'porter' ? 'porter' : 'user';
+    final statusLabel = status == 'diblokir' ? 'diblokir' : 'dinonaktifkan';
+    return 'Akun $roleLabel sedang $statusLabel. Hubungi admin.';
   }
 
   Future<AppResult<void>> updateUserProfile({

@@ -3,6 +3,7 @@ class PorterModel {
   final String nama;
   final String email;
   final String noHp;
+  final String status;
   final String statusVerifikasi;
   final bool isAktif;
   final double? latitude;
@@ -15,6 +16,7 @@ class PorterModel {
     required this.nama,
     required this.email,
     required this.noHp,
+    this.status = 'aktif',
     this.statusVerifikasi = 'menunggu',
     this.isAktif = false,
     this.latitude,
@@ -26,12 +28,14 @@ class PorterModel {
   bool get isVerified => statusVerifikasi == 'disetujui';
   bool get isPending => statusVerifikasi == 'menunggu';
   bool get isRejected => statusVerifikasi == 'ditolak';
+  bool get canLogin => status == 'aktif';
  
   factory PorterModel.fromJson(Map<String, dynamic> json) => PorterModel(
         id: json['id'] as String,
         nama: json['nama'] as String,
         email: json['email'] as String,
         noHp: json['no_hp'] as String,
+        status: json['status'] as String? ?? 'aktif',
         statusVerifikasi:
             json['status_verifikasi'] as String? ?? 'menunggu',
         isAktif: json['is_aktif'] as bool? ?? false,
@@ -48,6 +52,7 @@ class PorterModel {
         'nama': nama,
         'email': email,
         'no_hp': noHp,
+        'status': status,
         'status_verifikasi': statusVerifikasi,
         'is_aktif': isAktif,
         'latitude': latitude,
