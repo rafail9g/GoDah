@@ -6,6 +6,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/account_blocked_screen.dart';
 import '../../features/auth/screens/register_user_screen.dart';
 import '../../features/auth/screens/register_porter_screen.dart';
+import '../../features/auth/screens/reset_password_screen.dart';
 import '../../features/auth/screens/role_picker_screen.dart';
 import '../../features/user/screens/user_home_screen.dart';
 import '../../features/porter/screens/porter_home_screen.dart';
@@ -32,6 +33,9 @@ abstract class AppRouter {
       final isSplash = loc == '/splash';
       final isChooseRole = loc == '/choose-role';
       final isBlockedRoute = loc == '/account-blocked';
+      final isResetPasswordRoute = loc == '/reset-password';
+
+      if (isResetPasswordRoute) return null;
 
       if (auth.blockedAccountMessage != null) {
         return isBlockedRoute ? null : '/account-blocked';
@@ -86,6 +90,12 @@ abstract class AppRouter {
       GoRoute(
         path: '/register/porter',
         builder: (context, state) => const RegisterPorterScreen(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => ResetPasswordScreen(
+          initialEmail: state.uri.queryParameters['email'],
+        ),
       ),
       GoRoute(
         path: '/user/home',

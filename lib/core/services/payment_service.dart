@@ -86,6 +86,38 @@ class PaymentService {
     }
   }
 
+  Future<String?> syncPaymentStatus({
+    required String midtransOrderId,
+  }) async {
+    try {
+      final response = await http.post(
+        _endpoint('/payments/check-status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'midtrans_order_id': midtransOrderId,
+        }),
+      );
+
+      debugPrint('syncPaymentStatus status: ${response.statusCode}');
+      debugPrint('syncPaymentStatus body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = json['data'];
+        return json['payment_status'] as String? ??
+            (data is Map<String, dynamic> ? data['status'] as String? : null);
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('syncPaymentStatus error: $e');
+      return null;
+    }
+  }
+
   Future<String?> checkPaymentStatus(String orderId) async {
     try {
       final response = await http.get(

@@ -147,6 +147,135 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    final formKey = GlobalKey<FormState>();
+    var sending = false;
+
+    final sent = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !sending,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            title: const Text('Lupa kata sandi'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Masukkan email akun GoDah kamu. Token reset akan dikirim lewat email.',
+                    style: AppTextStyles.bodyMd,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: Validators.email,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.email,
+                      hintText: 'contoh@email.com',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: sending ? null : () => Navigator.pop(ctx, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: sending
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+
+                        setDialogState(() => sending = true);
+                        try {
+                          final email = emailCtrl.text.trim();
+                          final accountExists = await _accountExists(email);
+                          if (!accountExists) {
+                            if (!ctx.mounted) return;
+                            setDialogState(() => sending = false);
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Email akun tidak ditemukan.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+
+                          await Supabase.instance.client.auth
+                              .resetPasswordForEmail(email);
+
+                          if (ctx.mounted) Navigator.pop(ctx, true);
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setDialogState(() => sending = false);
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text('Gagal mengirim token reset: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      },
+                child: sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Text('Kirim Token'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    Future<void>.delayed(const Duration(milliseconds: 350), emailCtrl.dispose);
+
+    if (sent == true && mounted) {
+      final email = Uri.encodeComponent(emailCtrl.text.trim());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Token reset kata sandi sudah dikirim.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      context.push('/reset-password?email=$email');
+    }
+  }
+
+  Future<bool> _accountExists(String email) async {
+    final supabase = Supabase.instance.client;
+
+    final user = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+    if (user != null) return true;
+
+    final porter = await supabase
+        .from('porters')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+    return porter != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -292,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: _showForgotPasswordDialog,
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 8,

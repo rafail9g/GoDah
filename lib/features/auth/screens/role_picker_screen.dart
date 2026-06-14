@@ -124,7 +124,6 @@ class RolePickerScreen extends StatelessWidget {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     final title = isGoogleCompletion
         ? 'Lengkapi Akun Google'
@@ -146,105 +145,113 @@ class RolePickerScreen extends StatelessWidget {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 24),
-              Text(
-                title,
-                style: AppTextStyles.h1.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: AppTextStyles.bodyMd.copyWith(
-                  color: AppColors.grey500,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-
-              _RoleCard(
-                icon: Icons.school_rounded,
-                title: 'Mahasiswa (User)',
-                subtitle:
-                    'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
-                color: AppColors.primary,
-                onTap: () {
-                  if (isGoogleCompletion) {
-                    _showGoogleCompleteDialog(context, 'user');
-                  } else {
-                    context.push('/register/user');
-                  }
-                },
-              ),
-
-              const SizedBox(height: 18),
-
-              _RoleCard(
-                icon: Icons.directions_run_rounded,
-                title: 'Porter (Kurir)',
-                subtitle:
-                    'Mulai hasilkan uang dengan menerima pesanan angkut barang dari sesama mahasiswa.',
-                color: const Color(0xFF4CAF82),
-                onTap: () {
-                  if (isGoogleCompletion) {
-                    _showGoogleCompleteDialog(context, 'porter');
-                  } else {
-                    context.push('/register/porter');
-                  }
-                },
-              ),
-
-              const Spacer(),
-
-              if (!isGoogleCompletion)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Sudah punya akun? ',
-                      style: AppTextStyles.bodyMd.copyWith(
-                        color: AppColors.grey600,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => context.go('/login'),
-                      child: Text(
-                        'Masuk',
-                        style: AppTextStyles.bodyMd.copyWith(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 16.0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 24),
+                      Text(
+                        title,
+                        style: AppTextStyles.h1.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold,
+                          fontSize: 22,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  ],
-                )
-              else
-                TextButton(
-                  onPressed: () async {
-                    await context.read<AuthProvider>().logout();
-                  },
-                  child: Text(
-                    'Batal dan logout',
-                    style: AppTextStyles.bodyMd.copyWith(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.bold,
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.bodyMd.copyWith(
+                          color: AppColors.grey500,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 40),
+                      _RoleCard(
+                        icon: Icons.school_rounded,
+                        title: 'Mahasiswa (User)',
+                        subtitle:
+                            'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
+                        color: AppColors.primary,
+                        onTap: () {
+                          if (isGoogleCompletion) {
+                            _showGoogleCompleteDialog(context, 'user');
+                          } else {
+                            context.push('/register/user');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      _RoleCard(
+                        icon: Icons.directions_run_rounded,
+                        title: 'Porter (Kurir)',
+                        subtitle:
+                            'Mulai hasilkan uang dengan menerima pesanan angkut barang dari sesama mahasiswa.',
+                        color: const Color(0xFF4CAF82),
+                        onTap: () {
+                          if (isGoogleCompletion) {
+                            _showGoogleCompleteDialog(context, 'porter');
+                          } else {
+                            context.push('/register/porter');
+                          }
+                        },
+                      ),
+                      SizedBox(
+                        height: constraints.maxHeight < 520 ? 28 : 72,
+                      ),
+                      if (!isGoogleCompletion)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Sudah punya akun? ',
+                              style: AppTextStyles.bodyMd.copyWith(
+                                color: AppColors.grey600,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.go('/login'),
+                              child: Text(
+                                'Masuk',
+                                style: AppTextStyles.bodyMd.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        TextButton(
+                          onPressed: () async {
+                            await context.read<AuthProvider>().logout();
+                          },
+                          child: Text(
+                            'Batal dan logout',
+                            style: AppTextStyles.bodyMd.copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
-
-              const SizedBox(height: 16),
-            ],
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

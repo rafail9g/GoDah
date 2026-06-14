@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -117,56 +116,6 @@ class UserProfileTab extends StatelessWidget {
         );
       },
     );
-  }
-
-  Future<void> _showChangePasswordDialog(BuildContext context) async {
-    final email = context.read<AuthProvider>().currentUser?.email;
-    if (email == null) return;
-
-    final sent = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ganti Password'),
-        content: Text(
-          'Link reset password akan dikirim ke $email.',
-          style: AppTextStyles.bodyMd,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await Supabase.instance.client.auth.resetPasswordForEmail(
-                  email,
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              } catch (e) {
-                if (!ctx.mounted) return;
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(
-                    content: Text('Gagal mengirim reset password: $e'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-              }
-            },
-            child: const Text('Kirim Link'),
-          ),
-        ],
-      ),
-    );
-
-    if (sent == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Link reset password sudah dikirim.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
   }
 
   void _showInfoDialog(BuildContext context, String title, String message) {
@@ -353,12 +302,6 @@ class UserProfileTab extends StatelessWidget {
                         icon: Icons.edit_rounded,
                         label: 'Edit Profil',
                         onTap: () => _showEditProfileDialog(context),
-                      ),
-                      const Divider(height: 1),
-                      _MenuRow(
-                        icon: Icons.lock_rounded,
-                        label: 'Ganti Password',
-                        onTap: () => _showChangePasswordDialog(context),
                       ),
                       const Divider(height: 1),
                       _MenuRow(

@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,11 +33,36 @@ class UserPaymentScreen extends StatefulWidget {
   State<UserPaymentScreen> createState() => _UserPaymentScreenState();
 }
 
-class _UserPaymentScreenState extends State<UserPaymentScreen> {
+class _UserPaymentScreenState extends State<UserPaymentScreen>
+    with WidgetsBindingObserver {
   _PaymentState _state = _PaymentState.idle;
 
   String? _midtransOrderId;
   String? _redirectUrl;
+  Timer? _statusTimer;
+  int _statusCheckCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopStatusPolling();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _state == _PaymentState.waitingConfirmation) {
+      _checkPaymentStatus();
+      _startStatusPolling();
+    }
+  }
 
   Future<void> _bayarSekarang() async {
     setState(() => _state = _PaymentState.creatingPayment);
@@ -77,34 +102,48 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
     if (!mounted) return;
     setState(() => _state = _PaymentState.waitingConfirmation);
+    _startStatusPolling();
   }
 
-  Future<void> _sudahBayar() async {
+  void _startStatusPolling() {
     if (_midtransOrderId == null) return;
 
-    setState(() => _state = _PaymentState.verifying);
+    _statusTimer?.cancel();
+    _statusCheckCount = 0;
+    _statusTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _checkPaymentStatus();
+    });
+    _checkPaymentStatus();
+  }
 
-    final success = await PaymentService.instance.markPaidManual(
+  void _stopStatusPolling() {
+    _statusTimer?.cancel();
+    _statusTimer = null;
+  }
+
+  Future<void> _checkPaymentStatus() async {
+    if (_midtransOrderId == null) return;
+    if (_state != _PaymentState.waitingConfirmation &&
+        _state != _PaymentState.verifying) {
+      return;
+    }
+
+    _statusCheckCount++;
+    final syncedStatus = await PaymentService.instance.syncPaymentStatus(
       midtransOrderId: _midtransOrderId!,
-      paymentType: 'bank_transfer',
     );
 
     if (!mounted) return;
 
-    if (!success) {
-      setState(() => _state = _PaymentState.waitingConfirmation);
-      
-      _showSnack('Gagal konfirmasi pembayaran. Coba lagi.', AppColors.error);
-      return;
-    }
-
-    final status = await PaymentService.instance.checkPaymentStatus(
+    final localStatus = await PaymentService.instance.checkPaymentStatus(
       widget.orderId,
     );
+    final status = syncedStatus ?? localStatus;
 
     if (!mounted) return;
 
     if (status == 'paid') {
+      _stopStatusPolling();
       final synced = await _syncOrderPayment(
         paymentStatus: 'paid',
         midtransOrderId: _midtransOrderId!,
@@ -115,17 +154,31 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
       if (!synced) {
         setState(() => _state = _PaymentState.waitingConfirmation);
         _showSnack(
-          'Pembayaran berhasil, tapi gagal update status order. Coba konfirmasi lagi.',
+          'Pembayaran berhasil, tapi gagal update status order. Tunggu sebentar.',
           AppColors.error,
         );
+        _startStatusPolling();
         return;
       }
 
       setState(() => _state = _PaymentState.success);
-    } else {
-      setState(() => _state = _PaymentState.waitingConfirmation);
+      return;
+    }
+
+    if (status == 'failed' || status == 'expired' || status == 'cancelled') {
+      _stopStatusPolling();
+      setState(() => _state = _PaymentState.idle);
       _showSnack(
-        'Status masih pending. Tunggu sebentar lalu coba lagi.',
+        'Pembayaran gagal atau kadaluarsa. Silakan bayar ulang.',
+        AppColors.error,
+      );
+      return;
+    }
+
+    if (_statusCheckCount >= 30) {
+      _stopStatusPolling();
+      _showSnack(
+        'Status pembayaran masih pending. Buka lagi halaman pembayaran bila perlu.',
         AppColors.warning,
       );
     }
@@ -199,7 +252,6 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
                   if (_state == _PaymentState.waitingConfirmation) ...[
                     _WaitingPanel(
-                      onSudahBayar: _sudahBayar,
                       onBukaMidtrans: _bukaMidtransLagi,
                     ),
                   ] else if (_state == _PaymentState.verifying) ...[
@@ -429,7 +481,7 @@ class _BayarPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Kamu akan diarahkan ke halaman pembayaran Midtrans. '
-                  'Setelah selesai, kembali ke app dan konfirmasi pembayaran.',
+                  'Setelah selesai, kembali ke app dan status akan dicek otomatis.',
                   style: AppTextStyles.bodySm.copyWith(color: AppColors.info),
                 ),
               ),
@@ -471,11 +523,9 @@ class _BayarPanel extends StatelessWidget {
 }
 
 class _WaitingPanel extends StatelessWidget {
-  final VoidCallback onSudahBayar;
   final VoidCallback onBukaMidtrans;
 
   const _WaitingPanel({
-    required this.onSudahBayar,
     required this.onBukaMidtrans,
   });
 
@@ -508,7 +558,7 @@ class _WaitingPanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Sudah selesai bayar di Midtrans? Tap tombol di bawah.',
+                      'Kalau pembayaran berhasil di Midtrans, status akan otomatis dikonfirmasi.',
                       style: AppTextStyles.bodySm
                           .copyWith(color: AppColors.grey700),
                     ),
@@ -520,20 +570,33 @@ class _WaitingPanel extends StatelessWidget {
         ),
         const SizedBox(height: 20),
 
-        ElevatedButton.icon(
-          onPressed: onSudahBayar,
-          icon: const Icon(Icons.check_circle_rounded, size: 22),
-          label: const Text(
-            'Saya Sudah Bayar',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
           ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            minimumSize: const Size.fromHeight(56),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 4,
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Mengecek status pembayaran otomatis...',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.grey700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
