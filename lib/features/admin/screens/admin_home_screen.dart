@@ -183,10 +183,7 @@ class _UsersCrudTab extends StatelessWidget {
     titleField: 'nama',
     subtitleField: 'email',
     lineFields: ['no_hp', 'alamat', 'status'],
-<<<<<<< Updated upstream
-=======
     allowAdd: false,
->>>>>>> Stashed changes
   );
 }
 
@@ -202,12 +199,8 @@ class _PortersCrudTab extends StatelessWidget {
     requiredFields: ['nama', 'email', 'no_hp'],
     titleField: 'nama',
     subtitleField: 'email',
-<<<<<<< Updated upstream
-    lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
-=======
     lineFields: ['no_hp', 'status', 'status_verifikasi', 'total_selesai'],
     allowAdd: false,
->>>>>>> Stashed changes
   );
 }
 
@@ -531,16 +524,7 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                 .map(
                   (field) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-<<<<<<< Updated upstream
-                    child: TextField(
-                      controller: controllers[field],
-                      decoration: InputDecoration(
-                        labelText: _fieldLabel(field),
-                      ),
-                    ),
-=======
                     child: _buildAdminField(field, controllers[field]!),
->>>>>>> Stashed changes
                   ),
                 )
                 .toList(),
@@ -816,8 +800,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     return trimmed;
   }
 
-<<<<<<< Updated upstream
-=======
   Widget _buildAdminField(String field, TextEditingController controller) {
     final options = _fieldOptions(field);
     if (options == null) {
@@ -889,7 +871,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     return null;
   }
 
->>>>>>> Stashed changes
   double? _numValue(dynamic value) {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value);
@@ -1031,14 +1012,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                                   color: AppColors.info,
                                   tooltip: 'Ubah tujuan lewat peta',
                                 ),
-<<<<<<< Updated upstream
-                              IconButton(
-                                onPressed: () => _upsert(item),
-                                icon: const Icon(Icons.edit_outlined),
-                                color: AppColors.primary,
-                                tooltip: 'Edit',
-                              ),
-=======
                               if (widget.table != 'orders')
                                 IconButton(
                                   onPressed: () => _upsert(item),
@@ -1046,7 +1019,6 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                                   color: AppColors.primary,
                                   tooltip: 'Edit',
                                 ),
->>>>>>> Stashed changes
                               IconButton(
                                 onPressed: () => _delete(item),
                                 icon: const Icon(Icons.delete_outline_rounded),
