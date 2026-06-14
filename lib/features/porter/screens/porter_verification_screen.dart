@@ -63,6 +63,11 @@ Future<void> _kirimVerifikasi() async {
       'dokumen_url': dokumenUrl,
     });
 
+    await _supabase
+        .from('porters')
+        .update({'status_verifikasi': 'menunggu', 'is_aktif': false})
+        .eq('id', porter.id);
+
     final adminRes = await _supabase
         .from('admins')
         .select('id')

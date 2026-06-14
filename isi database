@@ -456,6 +456,13 @@ CREATE POLICY "Porter baca profil sendiri"
   ON porters FOR SELECT
   USING (auth.uid() = id);
 
+-- Admin app perlu membaca nama/no HP porter saat meninjau verifikasi.
+-- Login admin di aplikasi ini memakai tabel public.admins, jadi request client
+-- tetap datang sebagai anon/authenticated Supabase role biasa.
+CREATE POLICY "Admin app baca profil porter untuk verifikasi"
+  ON porters FOR SELECT
+  USING (true);
+
 CREATE POLICY "Porter update profil sendiri"
   ON porters FOR UPDATE
   USING (auth.uid() = id);

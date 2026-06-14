@@ -1088,6 +1088,10 @@ class _AdminListHeader extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// VERIFIKASI LIST — fixed: hapus foto_profil, tambah catch block proper
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _VerifikasiList extends StatefulWidget {
   final String status;
   const _VerifikasiList({required this.status});
@@ -1103,6 +1107,7 @@ class _VerifikasiListState extends State<_VerifikasiList>
 
   List<Map<String, dynamic>> _data = [];
   bool _loading = true;
+  String? _errorMsg;
   Timer? _autoRefreshTimer;
   bool _refreshing = false;
 
@@ -1127,18 +1132,30 @@ class _VerifikasiListState extends State<_VerifikasiList>
     _refreshing = true;
 
     if (showLoading && mounted) {
-      setState(() => _loading = true);
+      setState(() {
+        _loading = true;
+        _errorMsg = null;
+      });
     }
 
     try {
+      // foto_profil dihapus — kolom itu tidak ada di tabel porters
       final res = await _supabase
           .from('porter_verifikasi')
-          .select('*, porters(id, nama, email, no_hp, foto_profil)')
+          .select('*, porters(id, nama, email, no_hp)')
           .eq('status', widget.status)
           .order('created_at', ascending: false);
 
       if (mounted) {
-        setState(() => _data = List<Map<String, dynamic>>.from(res));
+        setState(() {
+          _data = List<Map<String, dynamic>>.from(res);
+          _errorMsg = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error load verifikasi [${widget.status}]: $e');
+      if (mounted) {
+        setState(() => _errorMsg = 'Gagal memuat data: $e');
       }
     } finally {
       _refreshing = false;
@@ -1156,24 +1173,66 @@ class _VerifikasiListState extends State<_VerifikasiList>
       );
     }
 
-    if (_data.isEmpty) {
+    // Tampilkan error dengan tombol retry
+    if (_errorMsg != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  size: 56, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(
+                _errorMsg!,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey700),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Coba Lagi'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_data.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.primary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            Icon(
-              widget.status == 'menunggu'
-                  ? Icons.hourglass_empty_rounded
-                  : widget.status == 'disetujui'
-                  ? Icons.verified_rounded
-                  : Icons.cancel_rounded,
-              size: 56,
-              color: AppColors.grey300,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Tidak ada data',
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey400),
+            const SizedBox(height: 100),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.status == 'menunggu'
+                        ? Icons.hourglass_empty_rounded
+                        : widget.status == 'disetujui'
+                        ? Icons.verified_rounded
+                        : Icons.cancel_rounded,
+                    size: 56,
+                    color: AppColors.grey300,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Tidak ada data',
+                    style: AppTextStyles.bodyMd
+                        .copyWith(color: AppColors.grey400),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1184,6 +1243,7 @@ class _VerifikasiListState extends State<_VerifikasiList>
       onRefresh: _load,
       color: AppColors.primary,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _data.length,
         itemBuilder: (context, i) {
