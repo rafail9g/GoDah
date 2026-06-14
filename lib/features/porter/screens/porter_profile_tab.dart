@@ -69,8 +69,10 @@ class PorterProfileTab extends StatelessWidget {
       ),
     );
 
-    namaCtrl.dispose();
-    hpCtrl.dispose();
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      namaCtrl.dispose();
+      hpCtrl.dispose();
+    });
 
     if (payload == null || !context.mounted) return;
 

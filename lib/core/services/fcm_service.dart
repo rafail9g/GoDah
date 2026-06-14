@@ -21,18 +21,6 @@ class FcmService {
   final _localNotif = FlutterLocalNotificationsPlugin();
   final _supabase = Supabase.instance.client;
 
-  static const String _configuredApiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'https://api-godah-production.up.railway.app',
-  );
-
-  static String get _apiBaseUrl => _configuredApiBaseUrl.replaceFirst(
-        RegExp(r'/+$'),
-        '',
-      );
-
-  Uri _apiEndpoint(String path) => Uri.parse('$_apiBaseUrl$path');
-
   static const _channelId = 'godah_orders';
   static const _channelName = 'GoDah Orders';
   static const _verificationChannelId = 'godah_verifikasi';

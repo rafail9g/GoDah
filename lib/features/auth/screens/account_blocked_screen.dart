@@ -33,7 +33,7 @@ class AccountBlockedScreen extends StatelessWidget {
                     width: 82,
                     height: 82,
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
+                      color: AppColors.error.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(

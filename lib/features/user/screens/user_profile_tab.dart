@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -82,9 +81,11 @@ class UserProfileTab extends StatelessWidget {
       ),
     );
 
-    namaCtrl.dispose();
-    hpCtrl.dispose();
-    alamatCtrl.dispose();
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      namaCtrl.dispose();
+      hpCtrl.dispose();
+      alamatCtrl.dispose();
+    });
 
     if (payload == null || !context.mounted) return;
 

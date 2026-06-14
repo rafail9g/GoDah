@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,7 +35,7 @@ class GoDahApp extends StatefulWidget {
 
 class _GoDahAppState extends State<GoDahApp> {
   late final AuthProvider _auth;
-  late final _router;
+  late final GoRouter _router;
 
   @override
   void initState() {

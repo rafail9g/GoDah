@@ -222,6 +222,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
             'estimasi_berat': _estimasiBerat,
             'jenis_layanan': _jenisLayanan,
             'total_biaya': totalBiaya,
+            'payment_status': 'pending',
             if (_catatanCtrl.text.trim().isNotEmpty)
               'catatan': _catatanCtrl.text.trim(),
             if (tarif != null) 'tarif_id': tarif['id'],

@@ -177,9 +177,8 @@ class _UsersCrudTab extends StatelessWidget {
     title: 'Data User',
     table: 'users',
     select: '*',
-    editableFields: ['nama', 'email', 'no_hp', 'alamat', 'status'],
-    requiredFields: ['nama', 'email', 'no_hp'],
-    insertDefaults: {'password_hash': 'admin_created'},
+    editableFields: ['status'],
+    requiredFields: ['status'],
     titleField: 'nama',
     subtitleField: 'email',
     lineFields: ['no_hp', 'alamat', 'status'],
@@ -195,8 +194,8 @@ class _PortersCrudTab extends StatelessWidget {
     title: 'Data Porter',
     table: 'porters',
     select: '*',
-    editableFields: ['nama', 'email', 'no_hp', 'status_verifikasi', 'is_aktif'],
-    requiredFields: ['nama', 'email', 'no_hp'],
+    editableFields: ['status'],
+    requiredFields: ['status'],
     titleField: 'nama',
     subtitleField: 'email',
     lineFields: ['no_hp', 'status', 'status_verifikasi', 'total_selesai'],
@@ -815,7 +814,7 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     controller.text = initialValue;
 
     return DropdownButtonFormField<String>(
-      value: initialValue,
+      initialValue: initialValue,
       decoration: InputDecoration(labelText: _fieldLabel(field)),
       items: options
           .map(

@@ -100,10 +100,6 @@ Future<void> _kirimVerifikasi() async {
     final porter = context.watch<AuthProvider>().currentPorter;
     if (porter == null) return const SizedBox();
 
-    final sudahSubmit = _submitted || porter.statusVerifikasi != 'menunggu'
-        ? false
-        : false;
-
     final isApproved = porter.statusVerifikasi == 'disetujui';
     final isRejected = porter.statusVerifikasi == 'ditolak';
     final tampilForm = !isApproved && !_submitted;

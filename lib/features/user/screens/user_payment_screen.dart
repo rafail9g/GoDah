@@ -1,10 +1,13 @@
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/payment_service.dart';
+
+final _supabase = Supabase.instance.client;
 
 class UserPaymentScreen extends StatefulWidget {
   final String orderId;
@@ -56,6 +59,10 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
 
     _midtransOrderId = result.midtransOrderId;
     _redirectUrl = result.redirectUrl;
+    await _syncOrderPayment(
+      paymentStatus: 'pending',
+      midtransOrderId: result.midtransOrderId,
+    );
 
     final uri = Uri.parse(result.redirectUrl);
     final canLaunch = await canLaunchUrl(uri);
@@ -98,6 +105,22 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
     if (!mounted) return;
 
     if (status == 'paid') {
+      final synced = await _syncOrderPayment(
+        paymentStatus: 'paid',
+        midtransOrderId: _midtransOrderId!,
+        paidAt: DateTime.now(),
+      );
+      if (!mounted) return;
+
+      if (!synced) {
+        setState(() => _state = _PaymentState.waitingConfirmation);
+        _showSnack(
+          'Pembayaran berhasil, tapi gagal update status order. Coba konfirmasi lagi.',
+          AppColors.error,
+        );
+        return;
+      }
+
       setState(() => _state = _PaymentState.success);
     } else {
       setState(() => _state = _PaymentState.waitingConfirmation);
@@ -105,6 +128,27 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
         'Status masih pending. Tunggu sebentar lalu coba lagi.',
         AppColors.warning,
       );
+    }
+  }
+
+  Future<bool> _syncOrderPayment({
+    required String paymentStatus,
+    required String midtransOrderId,
+    DateTime? paidAt,
+  }) async {
+    try {
+      await _supabase
+          .from('orders')
+          .update({
+            'payment_status': paymentStatus,
+            'midtrans_order_id': midtransOrderId,
+            if (paidAt != null) 'paid_at': paidAt.toIso8601String(),
+          })
+          .eq('id', widget.orderId);
+      return true;
+    } catch (e) {
+      debugPrint('Gagal update payment_status order: $e');
+      return false;
     }
   }
 

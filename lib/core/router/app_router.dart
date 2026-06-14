@@ -64,35 +64,45 @@ abstract class AppRouter {
       return '/login';
     },
     routes: [
-      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/account-blocked',
-        builder: (_, __) => const AccountBlockedScreen(),
+        builder: (context, state) => const AccountBlockedScreen(),
       ),
-      GoRoute(path: '/register', builder: (_, __) => const RolePickerScreen()),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RolePickerScreen(),
+      ),
       GoRoute(
         path: '/choose-role',
-        builder: (_, __) => const RolePickerScreen(isGoogleCompletion: true),
+        builder: (context, state) =>
+            const RolePickerScreen(isGoogleCompletion: true),
       ),
       GoRoute(
         path: '/register/user',
-        builder: (_, __) => const RegisterUserScreen(),
+        builder: (context, state) => const RegisterUserScreen(),
       ),
       GoRoute(
         path: '/register/porter',
-        builder: (_, __) => const RegisterPorterScreen(),
+        builder: (context, state) => const RegisterPorterScreen(),
       ),
-      GoRoute(path: '/user/home', builder: (_, __) => const UserHomeScreen()),
+      GoRoute(
+        path: '/user/home',
+        builder: (context, state) => const UserHomeScreen(),
+      ),
       GoRoute(
         path: '/porter/home',
-        builder: (_, __) => const PorterHomeScreen(),
+        builder: (context, state) => const PorterHomeScreen(),
       ),
       GoRoute(
         path: '/porter/verification',
-        builder: (_, __) => const PorterVerificationScreen(),
+        builder: (context, state) => const PorterVerificationScreen(),
       ),
-      GoRoute(path: '/admin/home', builder: (_, __) => const AdminHomeScreen()),
+      GoRoute(
+        path: '/admin/home',
+        builder: (context, state) => const AdminHomeScreen(),
+      ),
     ],
   );
 }
