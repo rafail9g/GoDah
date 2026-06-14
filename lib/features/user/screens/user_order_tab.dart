@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/fcm_service.dart';
 import '../../../core/services/map_service.dart';
+import '../../../core/widgets/brand_video_logo.dart';
 import '../../../state/providers/auth_provider.dart';
 import 'user_payment_screen.dart';
 
@@ -328,22 +329,22 @@ class _UserOrderTabState extends State<UserOrderTab> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                colors: [AppColors.primary, AppColors.primary],
               ),
             ),
             padding: const EdgeInsets.fromLTRB(20, 52, 20, 16),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.zero,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.local_shipping_rounded,
-                    color: AppColors.white,
-                    size: 22,
+                  child: const BrandVideoLogo(
+                    asset: 'assets/branding/order_logo.mp4',
+                    width: 34,
+                    height: 34,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -393,7 +394,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         side: const BorderSide(
-                          color: Color(0xFF1E3C72),
+                          color: AppColors.primary,
                           width: 1.5,
                         ),
                       ),
@@ -418,7 +419,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E3C72),
+                        backgroundColor: AppColors.primary,
                         minimumSize: const Size.fromHeight(52),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -530,7 +531,7 @@ class _UserOrderTabState extends State<UserOrderTab> {
                         Polyline(
                           points: [_lokasiJemput!, _lokasiTujuan!],
                           strokeWidth: 3.5,
-                          color: const Color(0xFF1E3C72),
+                          color: AppColors.primary,
                         ),
                       ],
                     ),
@@ -927,11 +928,11 @@ class _KategoriCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: selected
-            ? const Color(0xFF1E3C72).withOpacity(0.06)
+            ? AppColors.primary.withOpacity(0.06)
             : AppColors.grey50,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: selected ? const Color(0xFF1E3C72) : AppColors.grey200,
+          color: selected ? AppColors.primary : AppColors.grey200,
           width: selected ? 2 : 1,
         ),
       ),
@@ -945,7 +946,7 @@ class _KategoriCard extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: selected ? const Color(0xFF1E3C72) : AppColors.grey600,
+                color: selected ? AppColors.primary : AppColors.grey600,
                 size: 24,
               ),
               const SizedBox(height: 8),
@@ -957,7 +958,7 @@ class _KategoriCard extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                     color: selected
-                        ? const Color(0xFF1E3C72)
+                        ? AppColors.primary
                         : AppColors.grey700,
                   ),
                   textAlign: TextAlign.center,
@@ -997,11 +998,11 @@ class _LayananCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF1E3C72).withOpacity(0.06)
+              ? AppColors.primary.withOpacity(0.06)
               : AppColors.grey50,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? const Color(0xFF1E3C72) : AppColors.grey200,
+            color: selected ? AppColors.primary : AppColors.grey200,
             width: selected ? 2 : 1,
           ),
         ),
@@ -1009,14 +1010,14 @@ class _LayananCard extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: selected ? const Color(0xFF1E3C72) : AppColors.grey500,
+              color: selected ? AppColors.primary : AppColors.grey500,
               size: 32,
             ),
             const SizedBox(height: 10),
             Text(
               title,
               style: AppTextStyles.labelLg.copyWith(
-                color: selected ? const Color(0xFF1E3C72) : AppColors.grey800,
+                color: selected ? AppColors.primary : AppColors.grey800,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1059,14 +1060,14 @@ class _EstimasiCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+          colors: [AppColors.primary, AppColors.primary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E3C72).withOpacity(0.25),
+            color: AppColors.primary.withOpacity(0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),

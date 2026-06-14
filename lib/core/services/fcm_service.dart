@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _supabaseUrl = 'https://eohytcqfugefhjydhtrp.supabase.co'; // ganti dengan URL project kamu
+const _supabaseUrl = 'https://eohytcqfugefhjydhtrp.supabase.co'; 
 const _supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaHl0Y3FmdWdlZmhqeWRodHJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMTI4MDQsImV4cCI6MjA5NDU4ODgwNH0.l6uozOQW8jk_8WTB9ytv87oGDjLNwqrbISUsPQ33Oz8';
 @pragma('vm:entry-point')
 Future<void> firebaseBackgroundHandler(RemoteMessage message) async {

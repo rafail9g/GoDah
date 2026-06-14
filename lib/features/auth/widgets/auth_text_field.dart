@@ -14,6 +14,8 @@ class AuthTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final int maxLines;
   final TextCapitalization textCapitalization;
+  final VoidCallback? onTap;
+  final ValueChanged<String>? onChanged;
 
   const AuthTextField({
     super.key,
@@ -27,6 +29,8 @@ class AuthTextField extends StatelessWidget {
     this.suffixIcon,
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
+    this.onTap,
+    this.onChanged,
   });
 
   @override
@@ -41,6 +45,8 @@ class AuthTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
+          onTap: onTap,
+          onChanged: onChanged,
           maxLines: maxLines,
           textCapitalization: textCapitalization,
           style: AppTextStyles.inputValue,

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
@@ -14,7 +15,7 @@ final _supabase = Supabase.instance.client;
 class PorterProfileTab extends StatelessWidget {
   const PorterProfileTab({super.key});
 
-  static const _callCenterPhone = '081234567890';
+  static const _callCenterPhone = AppStrings.adminPhone;
 
   Future<void> _showEditProfileDialog(BuildContext context) async {
     final auth = context.read<AuthProvider>();
@@ -114,7 +115,7 @@ class PorterProfileTab extends StatelessWidget {
           'Profil Saya',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        backgroundColor: const Color(0xFF1E3C72),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         centerTitle: true,
       ),
@@ -125,7 +126,7 @@ class PorterProfileTab extends StatelessWidget {
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                  colors: [AppColors.primary, AppColors.primary],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -157,7 +158,7 @@ class PorterProfileTab extends StatelessWidget {
                             ? porter!.nama[0].toUpperCase()
                             : 'P',
                         style: AppTextStyles.displayMd.copyWith(
-                          color: const Color(0xFF1E3C72),
+                          color: AppColors.primary,
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
@@ -280,7 +281,6 @@ class PorterProfileTab extends StatelessWidget {
                         color: AppColors.error,
                         onTap: () async {
                           await auth.logout();
-                          if (context.mounted) context.go('/login');
                         },
                       ),
                     ],

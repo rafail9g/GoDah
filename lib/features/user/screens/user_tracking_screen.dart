@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/call_service.dart';
 
@@ -39,7 +40,7 @@ class UserTrackingScreen extends StatefulWidget {
 
 class _UserTrackingScreenState extends State<UserTrackingScreen> {
   final _mapController = MapController();
-  static const _callCenterPhone = '081234567890';
+  static const _callCenterPhone = AppStrings.adminPhone;
 
   LatLng? _porterLatLng;
   String _orderStatus = '';
@@ -245,7 +246,7 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Lacak Portermu'),
-        backgroundColor: const Color(0xFF1E3C72),
+        backgroundColor: AppColors.primary,
         actions: [
           if (_porterLatLng != null)
             IconButton(
@@ -341,7 +342,7 @@ class _UserTrackingScreenState extends State<UserTrackingScreen> {
                                     : lokasiJemput,
                               ],
                               strokeWidth: 4,
-                              color: const Color(0xFF1E3C72),
+                              color: AppColors.primary,
                             ),
                         ],
                       ),
@@ -593,12 +594,12 @@ class _PorterMarker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E3C72),
+        color: AppColors.primary,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E3C72).withOpacity(0.5),
+            color: AppColors.primary.withOpacity(0.5),
             blurRadius: 14,
             spreadRadius: 3,
           ),

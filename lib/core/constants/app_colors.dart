@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const Color primary = Color(0xFF355C7D);
+  static const Color primary = Color(0xFF214079);
   static const Color secondary = Color(0xFF5C7A89);
   static const Color accent = Color(0xFF8FB996);
   static const Color background = Color(0xFFF4F7F5);
@@ -11,7 +11,7 @@ abstract final class AppColors {
   static const Color primary200 = Color(0xFF8FAFC9);
   static const Color primary300 = Color(0xFF618FB3);
   static const Color primary400 = Color(0xFF4A7899);
-  static const Color primary500 = Color(0xFF355C7D);
+  static const Color primary500 = Color(0xFF214079);
   static const Color primary600 = Color(0xFF2B4D69);
   static const Color primary700 = Color(0xFF213D55);
   static const Color primary800 = Color(0xFF172E40);
@@ -50,7 +50,7 @@ abstract final class AppColors {
   static const Color statusMenunggu = Color(0xFFF5A623);
   static const Color statusDiterima = Color(0xFF4A90C4);
   static const Color statusMenujuLokasi = Color(0xFF9B59B6);
-  static const Color statusDalamPerjalanan = Color(0xFF355C7D);
+  static const Color statusDalamPerjalanan = Color(0xFF214079);
   static const Color statusSampaiTujuan = Color(0xFF8FB996);
   static const Color statusSelesai = Color(0xFF4CAF82);
   static const Color statusBatal = Color(0xFFE05252);

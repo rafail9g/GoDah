@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/constants/app_strings.dart';
 import '../../core/services/fcm_service.dart';
 import '../models/user_model.dart';
 import '../models/porter_model.dart';
@@ -13,7 +14,7 @@ final _supabase = Supabase.instance.client;
 
 class AuthProvider extends ChangeNotifier {
   static const _adminSessionKey = 'godah_admin_id';
-  static const _minimumSplashDuration = Duration(seconds: 3);
+  static const _minimumSplashDuration = Duration(seconds: 4);
 
   UserModel? _currentUser;
   PorterModel? _currentPorter;
@@ -22,6 +23,7 @@ class AuthProvider extends ChangeNotifier {
   String? _role;
   String? _lastAccountBlockMessage;
   String? _lastProfileLoadErrorMessage;
+  String? _pendingAuthMessage;
 
   bool _isManualLogin = false;
 
@@ -34,6 +36,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null || _currentPorter != null;
   bool get isAdminLoggedIn => _currentAdmin != null;
   bool get isPorterVerified => _currentPorter?.statusVerifikasi == 'disetujui';
+  String? get blockedAccountMessage => _lastAccountBlockMessage;
 
   bool get hasSupabaseSession => _supabase.auth.currentUser != null;
 
@@ -43,6 +46,17 @@ class AuthProvider extends ChangeNotifier {
       _currentPorter == null &&
       _currentAdmin == null &&
       _role == null;
+
+  String? consumePendingAuthMessage() {
+    final message = _pendingAuthMessage;
+    _pendingAuthMessage = null;
+    return message;
+  }
+
+  void clearBlockedAccountMessage() {
+    _lastAccountBlockMessage = null;
+    notifyListeners();
+  }
 
   Future<void> init() async {
     final splashStartedAt = DateTime.now();
@@ -58,10 +72,7 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (_) {}
 
-    final splashElapsed = DateTime.now().difference(splashStartedAt);
-    if (splashElapsed < _minimumSplashDuration) {
-      await Future.delayed(_minimumSplashDuration - splashElapsed);
-    }
+    await _waitForMinimumSplash(splashStartedAt);
 
     _isLoading = false;
     notifyListeners();
@@ -72,14 +83,18 @@ class AuthProvider extends ChangeNotifier {
       if (event == AuthChangeEvent.signedIn && data.session != null) {
         if (_isManualLogin) return;
 
+        final splashStartedAt = DateTime.now();
         _isLoading = true;
         notifyListeners();
 
         await _loadProfile(data.session!.user.id);
+        await _waitForMinimumSplash(splashStartedAt);
 
         _isLoading = false;
         notifyListeners();
       } else if (event == AuthChangeEvent.signedOut) {
+        if (_isLoading) return;
+
         _currentUser = null;
         _currentPorter = null;
         _currentAdmin = null;
@@ -380,46 +395,68 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    try {
-      _isManualLogin = true;
+    _isManualLogin = true;
+    _lastAccountBlockMessage = null;
+    _pendingAuthMessage = null;
+    notifyListeners();
 
+    try {
       final res = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
       if (res.user == null) {
-        _isManualLogin = false;
-        return Failure(AppError(message: 'Login gagal.'));
+        return _finishLoginFailure(
+          const AppError(message: 'Email atau password anda salah.'),
+        );
       }
 
       await _loadProfile(res.user!.id);
 
-      _isManualLogin = false;
-
       if (_lastAccountBlockMessage != null) {
-        return Failure(AppError(message: _lastAccountBlockMessage!));
-      }
-
-      if (_role == null) {
-        return Failure(
-          AppError(
-            message:
-                _lastProfileLoadErrorMessage ??
-                'Akun tidak ditemukan. Hubungi admin.',
-          ),
+        return _finishLoginFailure(
+          AppError(message: _lastAccountBlockMessage!),
         );
       }
 
+      if (_role == null) {
+        _lastAccountBlockMessage = _lastProfileLoadErrorMessage ??
+            'Akun anda diblokir atau dinonaktifkan.';
+        return _finishLoginFailure(
+          AppError(message: _lastAccountBlockMessage!),
+        );
+      }
+
+      final splashStartedAt = DateTime.now();
+      _isLoading = true;
       notifyListeners();
+      await _finishManualAuthSplash(splashStartedAt);
       return Success(_role!);
     } on AuthException catch (e) {
-      _isManualLogin = false;
-      return Failure(AppError(message: _translateAuthError(e.message)));
+      return _finishLoginFailure(
+        AppError(message: _translateAuthError(e.message)),
+      );
     } catch (e) {
-      _isManualLogin = false;
-      return Failure(AppError.fromException(e));
+      return _finishLoginFailure(AppError.fromException(e));
     }
+  }
+
+  Future<AppResult<String>> _finishLoginFailure(
+    AppError error,
+  ) async {
+    if (!_isBlockedAccountMessage(error.message)) {
+      _pendingAuthMessage = error.message;
+    }
+    _isManualLogin = false;
+    _isLoading = false;
+    notifyListeners();
+    return Failure(error);
+  }
+
+  bool _isBlockedAccountMessage(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('diblokir') || lower.contains('dinonaktifkan');
   }
 
   Future<AppResult<AdminModel>> loginAdmin({
@@ -467,6 +504,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final splashStartedAt = DateTime.now();
     _isLoading = true;
     notifyListeners();
 
@@ -476,6 +514,7 @@ class AuthProvider extends ChangeNotifier {
       await prefs.remove(_adminSessionKey);
       _currentAdmin = null;
       _role = null;
+      await _waitForMinimumSplash(splashStartedAt);
       _isLoading = false;
       notifyListeners();
       return;
@@ -491,8 +530,27 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     _currentPorter = null;
     _role = null;
+    await _waitForMinimumSplash(splashStartedAt);
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _finishManualAuthSplash(DateTime startedAt) async {
+    _isManualLogin = false;
+    await _finishAuthSplash(startedAt);
+  }
+
+  Future<void> _finishAuthSplash(DateTime startedAt) async {
+    await _waitForMinimumSplash(startedAt);
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> _waitForMinimumSplash(DateTime startedAt) async {
+    final splashElapsed = DateTime.now().difference(startedAt);
+    if (splashElapsed < _minimumSplashDuration) {
+      await Future.delayed(_minimumSplashDuration - splashElapsed);
+    }
   }
 
   Future<void> reloadPorterProfile() async {
@@ -509,13 +567,18 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _isRestrictedStatus(String status) =>
-      status == 'nonaktif' || status == 'diblokir';
+  bool _isRestrictedStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized == 'nonaktif' || normalized == 'diblokir';
+  }
 
   String _blockedAccountMessage(String role, String status) {
     final roleLabel = role == 'porter' ? 'porter' : 'user';
-    final statusLabel = status == 'diblokir' ? 'diblokir' : 'dinonaktifkan';
-    return 'Akun $roleLabel sedang $statusLabel. Hubungi admin.';
+    if (status.trim().toLowerCase() == 'diblokir') {
+      return 'Akun $roleLabel anda diblokir.';
+    }
+
+    return 'Akun $roleLabel anda dinonaktifkan.';
   }
 
   Future<AppResult<void>> updateUserProfile({

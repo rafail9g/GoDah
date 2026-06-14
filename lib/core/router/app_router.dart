@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../state/providers/auth_provider.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/account_blocked_screen.dart';
 import '../../features/auth/screens/register_user_screen.dart';
 import '../../features/auth/screens/register_porter_screen.dart';
 import '../../features/auth/screens/role_picker_screen.dart';
@@ -30,6 +31,11 @@ abstract class AppRouter {
 
       final isSplash = loc == '/splash';
       final isChooseRole = loc == '/choose-role';
+      final isBlockedRoute = loc == '/account-blocked';
+
+      if (auth.blockedAccountMessage != null) {
+        return isBlockedRoute ? null : '/account-blocked';
+      }
 
       if (auth.needsRoleSelection) {
         return isChooseRole ? null : '/choose-role';
@@ -60,6 +66,10 @@ abstract class AppRouter {
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/account-blocked',
+        builder: (_, __) => const AccountBlockedScreen(),
+      ),
       GoRoute(path: '/register', builder: (_, __) => const RolePickerScreen()),
       GoRoute(
         path: '/choose-role',

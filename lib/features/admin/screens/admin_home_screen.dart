@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,6 +12,13 @@ import '../../../state/providers/auth_provider.dart';
 
 final _supabase = Supabase.instance.client;
 
+class _FieldOption {
+  final String value;
+  final String label;
+
+  const _FieldOption(this.value, this.label);
+}
+
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
 
@@ -21,13 +27,22 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
+  static const _tabCount = 5;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: _tabCount, vsync: this);
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (_tabController.length != _tabCount) {
+      _replaceTabController();
+    }
   }
 
   @override
@@ -36,8 +51,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     super.dispose();
   }
 
+  void _replaceTabController() {
+    final oldController = _tabController;
+    final nextIndex = oldController.index.clamp(0, _tabCount - 1);
+    _tabController = TabController(
+      length: _tabCount,
+      vsync: this,
+      initialIndex: nextIndex,
+    );
+    oldController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_tabController.length != _tabCount) {
+      _replaceTabController();
+    }
+
     final auth = context.watch<AuthProvider>();
     final admin = auth.currentAdmin;
 
@@ -62,7 +92,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             tooltip: 'Logout',
             onPressed: () async {
               await auth.logout();
-              if (context.mounted) context.go('/admin/login');
             },
           ),
         ],
@@ -82,6 +111,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             Tab(text: 'User'),
             Tab(text: 'Porter'),
             Tab(text: 'Order'),
+            Tab(text: 'Pendapatan'),
           ],
         ),
       ),
@@ -92,6 +122,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           _UsersCrudTab(),
           _PortersCrudTab(),
           _OrdersCrudTab(),
+          _PorterIncomeTab(),
         ],
       ),
     );
@@ -152,6 +183,10 @@ class _UsersCrudTab extends StatelessWidget {
     titleField: 'nama',
     subtitleField: 'email',
     lineFields: ['no_hp', 'alamat', 'status'],
+<<<<<<< Updated upstream
+=======
+    allowAdd: false,
+>>>>>>> Stashed changes
   );
 }
 
@@ -167,7 +202,12 @@ class _PortersCrudTab extends StatelessWidget {
     requiredFields: ['nama', 'email', 'no_hp'],
     titleField: 'nama',
     subtitleField: 'email',
+<<<<<<< Updated upstream
     lineFields: ['no_hp', 'status_verifikasi', 'is_aktif', 'total_selesai'],
+=======
+    lineFields: ['no_hp', 'status', 'status_verifikasi', 'total_selesai'],
+    allowAdd: false,
+>>>>>>> Stashed changes
   );
 }
 
@@ -192,6 +232,207 @@ class _OrdersCrudTab extends StatelessWidget {
     ],
     allowAdd: false,
   );
+}
+
+class _PorterIncomeTab extends StatefulWidget {
+  const _PorterIncomeTab();
+
+  @override
+  State<_PorterIncomeTab> createState() => _PorterIncomeTabState();
+}
+
+class _PorterIncomeTabState extends State<_PorterIncomeTab> {
+  bool _loading = true;
+  List<_PorterIncome> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await _supabase
+          .from('orders')
+          .select('id, total_biaya, waktu_selesai, porter_id, porters(nama, email, no_hp)')
+          .eq('status', 'selesai')
+          .not('porter_id', 'is', null)
+          .order('waktu_selesai', ascending: false);
+
+      final grouped = <String, _PorterIncome>{};
+      for (final order in List<Map<String, dynamic>>.from(res)) {
+        final porterId = order['porter_id'] as String? ?? '';
+        if (porterId.isEmpty) continue;
+
+        final porter = order['porters'] as Map<String, dynamic>? ?? {};
+        final current = grouped[porterId] ??
+            _PorterIncome(
+              porterId: porterId,
+              nama: porter['nama'] as String? ?? '-',
+              email: porter['email'] as String? ?? '-',
+              noHp: porter['no_hp'] as String? ?? '-',
+            );
+
+        grouped[porterId] = current.copyWith(
+          total: current.total + (order['total_biaya'] as num? ?? 0).toDouble(),
+          orderCount: current.orderCount + 1,
+        );
+      }
+
+      final items = grouped.values.toList()
+        ..sort((a, b) => b.total.compareTo(a.total));
+      if (mounted) setState(() => _items = items);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat pendapatan porter: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _rupiah(num value) {
+    final digits = value.toInt().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+    return 'Rp $buffer';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    final totalSemua = _items.fold<double>(0, (sum, item) => sum + item.total);
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.primary,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+        children: [
+          _AdminListHeader(
+            title: 'Pendapatan Porter',
+            count: _items.length,
+          ),
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Pendapatan Order Selesai',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.white.withOpacity(0.78),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _rupiah(totalSemua),
+                  style: AppTextStyles.h2.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 120),
+              child: Text(
+                'Belum ada order selesai.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodyMd.copyWith(color: AppColors.grey500),
+              ),
+            )
+          else
+            ..._items.map(
+              (item) => Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                elevation: 0,
+                color: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.grey200),
+                ),
+                child: ListTile(
+                  title: Text(
+                    item.nama,
+                    style: AppTextStyles.h4.copyWith(
+                      color: AppColors.grey900,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${item.orderCount} order selesai\n${item.email}',
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.grey600,
+                    ),
+                  ),
+                  trailing: Text(
+                    _rupiah(item.total),
+                    style: AppTextStyles.labelLg.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PorterIncome {
+  final String porterId;
+  final String nama;
+  final String email;
+  final String noHp;
+  final double total;
+  final int orderCount;
+
+  const _PorterIncome({
+    required this.porterId,
+    required this.nama,
+    required this.email,
+    required this.noHp,
+    this.total = 0,
+    this.orderCount = 0,
+  });
+
+  _PorterIncome copyWith({
+    double? total,
+    int? orderCount,
+  }) =>
+      _PorterIncome(
+        porterId: porterId,
+        nama: nama,
+        email: email,
+        noHp: noHp,
+        total: total ?? this.total,
+        orderCount: orderCount ?? this.orderCount,
+      );
 }
 
 class _SimpleAdminTable extends StatefulWidget {
@@ -290,12 +531,16 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                 .map(
                   (field) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
+<<<<<<< Updated upstream
                     child: TextField(
                       controller: controllers[field],
                       decoration: InputDecoration(
                         labelText: _fieldLabel(field),
                       ),
                     ),
+=======
+                    child: _buildAdminField(field, controllers[field]!),
+>>>>>>> Stashed changes
                   ),
                 )
                 .toList(),
@@ -565,12 +810,86 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
   dynamic _parseFieldValue(String field, String value) {
     final trimmed = value.trim();
     if (field == 'is_aktif') {
-      return trimmed.toLowerCase() == 'true' || trimmed == '1';
+      return trimmed == 'true';
     }
     if (trimmed.isEmpty) return null;
     return trimmed;
   }
 
+<<<<<<< Updated upstream
+=======
+  Widget _buildAdminField(String field, TextEditingController controller) {
+    final options = _fieldOptions(field);
+    if (options == null) {
+      return TextField(
+        controller: controller,
+        decoration: InputDecoration(labelText: _fieldLabel(field)),
+      );
+    }
+
+    final initialValue = options.any((item) => item.value == controller.text)
+        ? controller.text
+        : options.first.value;
+    controller.text = initialValue;
+
+    return DropdownButtonFormField<String>(
+      value: initialValue,
+      decoration: InputDecoration(labelText: _fieldLabel(field)),
+      items: options
+          .map(
+            (item) => DropdownMenuItem<String>(
+              value: item.value,
+              child: Text(item.label),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) controller.text = value;
+      },
+    );
+  }
+
+  List<_FieldOption>? _fieldOptions(String field) {
+    if (field == 'status' &&
+        (widget.table == 'users' || widget.table == 'porters')) {
+      return const [
+        _FieldOption('aktif', 'aktif'),
+        _FieldOption('nonaktif', 'nonaktif'),
+        _FieldOption('diblokir', 'diblokir'),
+      ];
+    }
+
+    if (field == 'status' && widget.table == 'orders') {
+      return const [
+        _FieldOption('menunggu', 'menunggu'),
+        _FieldOption('diterima', 'diterima'),
+        _FieldOption('menuju_lokasi', 'menuju lokasi'),
+        _FieldOption('dalam_perjalanan', 'dalam perjalanan'),
+        _FieldOption('sampai_tujuan', 'sampai tujuan'),
+        _FieldOption('selesai', 'selesai'),
+        _FieldOption('batal', 'batal'),
+      ];
+    }
+
+    if (field == 'status_verifikasi') {
+      return const [
+        _FieldOption('menunggu', 'menunggu'),
+        _FieldOption('disetujui', 'disetujui'),
+        _FieldOption('ditolak', 'ditolak'),
+      ];
+    }
+
+    if (field == 'is_aktif') {
+      return const [
+        _FieldOption('true', 'aktif'),
+        _FieldOption('false', 'nonaktif'),
+      ];
+    }
+
+    return null;
+  }
+
+>>>>>>> Stashed changes
   double? _numValue(dynamic value) {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value);
@@ -597,9 +916,9 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
     'email' => 'Email',
     'no_hp' => 'No. HP',
     'alamat' => 'Alamat',
-    'status' => 'Status',
+    'status' => widget.table == 'orders' ? 'Status Order' : 'Status Akun',
     'status_verifikasi' => 'Status Verifikasi',
-    'is_aktif' => 'Aktif (true/false)',
+    'is_aktif' => 'Status Aktif',
     'catatan' => 'Catatan',
     'lokasi_tujuan' => 'Tujuan Pesanan',
     'users.nama' => 'User',
@@ -712,12 +1031,22 @@ class _SimpleAdminTableState extends State<_SimpleAdminTable> {
                                   color: AppColors.info,
                                   tooltip: 'Ubah tujuan lewat peta',
                                 ),
+<<<<<<< Updated upstream
                               IconButton(
                                 onPressed: () => _upsert(item),
                                 icon: const Icon(Icons.edit_outlined),
                                 color: AppColors.primary,
                                 tooltip: 'Edit',
                               ),
+=======
+                              if (widget.table != 'orders')
+                                IconButton(
+                                  onPressed: () => _upsert(item),
+                                  icon: const Icon(Icons.edit_outlined),
+                                  color: AppColors.primary,
+                                  tooltip: 'Edit',
+                                ),
+>>>>>>> Stashed changes
                               IconButton(
                                 onPressed: () => _delete(item),
                                 icon: const Icon(Icons.delete_outline_rounded),
@@ -840,7 +1169,6 @@ class _VerifikasiListState extends State<_VerifikasiList>
       if (mounted) {
         setState(() => _data = List<Map<String, dynamic>>.from(res));
       }
-    } catch (e) {
     } finally {
       _refreshing = false;
       if (mounted) setState(() => _loading = false);

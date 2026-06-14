@@ -141,7 +141,7 @@ class RolePickerScreen extends StatelessWidget {
           isGoogleCompletion ? 'Pilih Peran' : 'Daftar Sebagai',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        backgroundColor: const Color(0xFF1E3C72),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         centerTitle: true,
       ),
@@ -177,7 +177,7 @@ class RolePickerScreen extends StatelessWidget {
                 title: 'Mahasiswa (User)',
                 subtitle:
                     'Pesan porter untuk angkut barang koper, kardus, atau belanjaan di sekitar kampus.',
-                color: const Color(0xFF1E3C72),
+                color: AppColors.primary,
                 onTap: () {
                   if (isGoogleCompletion) {
                     _showGoogleCompleteDialog(context, 'user');
@@ -221,7 +221,7 @@ class RolePickerScreen extends StatelessWidget {
                       child: Text(
                         'Masuk',
                         style: AppTextStyles.bodyMd.copyWith(
-                          color: const Color(0xFF1E3C72),
+                          color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -232,9 +232,6 @@ class RolePickerScreen extends StatelessWidget {
                 TextButton(
                   onPressed: () async {
                     await context.read<AuthProvider>().logout();
-                    if (context.mounted) {
-                      context.go('/login');
-                    }
                   },
                   child: Text(
                     'Batal dan logout',

@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/widgets/brand_video_logo.dart';
 import '../../../state/providers/auth_provider.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -25,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure = true;
   bool _loading = false;
   bool _googleLoading = false;
+  String? _errorMessage;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
@@ -39,9 +41,20 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final message = context.read<AuthProvider>().consumePendingAuthMessage();
+    if (message == null) return;
+    _errorMessage = _loginErrorMessage(message);
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
 
     final auth = context.read<AuthProvider>();
     final email = _emailCtrl.text.trim();
@@ -63,14 +76,29 @@ class _LoginScreenState extends State<LoginScreen> {
     userResult.when(
       success: (_) {},
       failure: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        setState(() => _errorMessage = _loginErrorMessage(error.message));
       },
     );
+  }
+
+  void _clearError() {
+    if (_errorMessage == null) return;
+    setState(() => _errorMessage = null);
+  }
+
+  String _loginErrorMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('diblokir') || lower.contains('dinonaktifkan')) {
+      return message;
+    }
+
+    if (lower.contains('invalid login credentials') ||
+        lower.contains('invalid_credentials') ||
+        lower.contains('email atau password salah')) {
+      return 'Email atau password anda salah.';
+    }
+
+    return message;
   }
 
   Future<void> _loginWithGoogle() async {
@@ -136,18 +164,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
                   child: Column(
                     children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.local_shipping_rounded,
-                          color: AppColors.primary,
-                          size: 32,
-                        ),
+                      const BrandVideoLogo(
+                        asset: 'assets/branding/order_logo.mp4',
+                        width: 72,
+                        height: 72,
                       ),
                       const SizedBox(height: 14),
                       Text(
@@ -204,6 +224,39 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: AppColors.grey600,
                               ),
                             ),
+                            if (_errorMessage != null) ...[
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.error.withOpacity(0.25),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline_rounded,
+                                      color: AppColors.error,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: AppTextStyles.bodySm.copyWith(
+                                          color: AppColors.error,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 24),
                             AuthTextField(
                               controller: _emailCtrl,
@@ -212,6 +265,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.emailAddress,
                               validator: Validators.email,
                               prefixIcon: Icons.email_outlined,
+                              onTap: _clearError,
+                              onChanged: (_) => _clearError(),
                             ),
                             const SizedBox(height: 16),
                             AuthTextField(
@@ -221,6 +276,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               obscureText: _obscure,
                               validator: Validators.required,
                               prefixIcon: Icons.lock_outline_rounded,
+                              onTap: _clearError,
+                              onChanged: (_) => _clearError(),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscure
@@ -333,20 +390,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        Image.network(
-                                          'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/32px-Google_%22G%22_logo.svg.png',
-                                          width: 20,
-                                          height: 20,
-                                          errorBuilder: (_, __, ___) =>
-                                              const Text(
-                                                'G',
-                                                style: TextStyle(
-                                                  color: Color(0xFF4285F4),
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                        ),
+                                        const _GoogleLogo(size: 20),
                                         const SizedBox(width: 12),
                                         Text(
                                           'Masuk dengan Google',
@@ -394,4 +438,58 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _GoogleLogo extends StatelessWidget {
+  final double size;
+
+  const _GoogleLogo({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size.square(size),
+      painter: _GoogleLogoPainter(),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeWidth = size.width * 0.18;
+    final rect = Offset.zero & size;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect.deflate(strokeWidth / 2), -0.08, 1.45, false, paint);
+
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect.deflate(strokeWidth / 2), 1.37, 1.28, false, paint);
+
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect.deflate(strokeWidth / 2), 2.65, 1.16, false, paint);
+
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect.deflate(strokeWidth / 2), 3.81, 1.46, false, paint);
+
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final centerY = size.height * 0.52;
+    canvas.drawLine(
+      Offset(size.width * 0.52, centerY),
+      Offset(size.width * 0.94, centerY),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

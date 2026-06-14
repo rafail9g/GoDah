@@ -1,6 +1,7 @@
 abstract final class AppStrings {
   static const String appName = 'GoDah';
   static const String appTagline = 'Jasa angkut barang untuk mahasiswa';
+  static const String adminPhone = '081234567890';
 
   static const String login = 'Masuk';
   static const String register = 'Daftar';

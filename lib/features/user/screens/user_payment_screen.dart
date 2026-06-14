@@ -129,7 +129,7 @@ class _UserPaymentScreenState extends State<UserPaymentScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Pembayaran'),
-        backgroundColor: const Color(0xFF1E3C72),
+        backgroundColor: AppColors.primary,
         leading: _state == _PaymentState.success
             ? const SizedBox()
             : IconButton(
@@ -243,7 +243,7 @@ class _OrderSummaryCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              color: Color(0xFF1E3C72),
+              color: AppColors.primary,
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(AppDimens.radiusLg),
               ),
@@ -413,7 +413,7 @@ class _BayarPanel extends StatelessWidget {
             ),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1E3C72),
+            backgroundColor: AppColors.primary,
             minimumSize: const Size.fromHeight(56),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -500,8 +500,8 @@ class _WaitingPanel extends StatelessWidget {
           label: const Text('Buka Halaman Pembayaran Lagi'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
-            foregroundColor: const Color(0xFF1E3C72),
-            side: const BorderSide(color: Color(0xFF1E3C72)),
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.primary),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -523,7 +523,7 @@ class _VerifyingPanel extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const CircularProgressIndicator(color: Color(0xFF1E3C72)),
+          const CircularProgressIndicator(color: AppColors.primary),
           const SizedBox(height: 16),
           Text(
             'Memverifikasi Pembayaran...',

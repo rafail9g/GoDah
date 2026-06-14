@@ -686,14 +686,14 @@ class _PorterDashboardTabState extends State<PorterDashboardTab> {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
-            backgroundColor: const Color(0xFF1E3C72),
+            backgroundColor: AppColors.primary,
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                    colors: [AppColors.primary, AppColors.primary],
                   ),
                 ),
                 child: SafeArea(
@@ -946,7 +946,7 @@ class _ActiveOrderCard extends StatelessWidget {
                                     : LatLng(latJemput, lngJemput),
                               ],
                               strokeWidth: 3.5,
-                              color: const Color(0xFF1E3C72),
+                              color: AppColors.primary,
                             ),
                         ],
                       ),
@@ -983,7 +983,7 @@ class _ActiveOrderCard extends StatelessWidget {
                             height: 48,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1E3C72),
+                                color: AppColors.primary,
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: Colors.white,
@@ -1116,8 +1116,8 @@ class _ActiveOrderCard extends StatelessWidget {
                   label: const Text('Hubungi User'),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(44),
-                    foregroundColor: const Color(0xFF1E3C72),
-                    side: const BorderSide(color: Color(0xFF1E3C72)),
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1222,7 +1222,7 @@ class _AvailableOrderCard extends StatelessWidget {
                 Text(
                   'Rp ${_rupiahFormat(biaya)}',
                   style: AppTextStyles.priceMd.copyWith(
-                    color: const Color(0xFF1E3C72),
+                    color: AppColors.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1295,7 +1295,7 @@ class _AvailableOrderCard extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: isAccepting ? null : onAccept,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E3C72),
+                  backgroundColor: AppColors.primary,
                   disabledBackgroundColor: AppColors.grey300,
                   minimumSize: const Size.fromHeight(50),
                   shape: RoundedRectangleBorder(
@@ -1515,11 +1515,11 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E3C72),
+          color: AppColors.primary,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1E3C72).withOpacity(0.16),
+              color: AppColors.primary.withOpacity(0.16),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),

@@ -570,7 +570,7 @@ class _ActiveOrderCard extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E3C72),
+                          backgroundColor: AppColors.primary,
                           minimumSize: const Size.fromHeight(46),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),

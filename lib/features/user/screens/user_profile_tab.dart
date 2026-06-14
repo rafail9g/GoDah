@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/call_service.dart';
 import '../../../state/providers/auth_provider.dart';
@@ -12,7 +13,7 @@ import '../../../state/providers/auth_provider.dart';
 class UserProfileTab extends StatelessWidget {
   const UserProfileTab({super.key});
 
-  static const _callCenterPhone = '081234567890';
+  static const _callCenterPhone = AppStrings.adminPhone;
 
   Future<void> _showEditProfileDialog(BuildContext context) async {
     final auth = context.read<AuthProvider>();
@@ -195,7 +196,7 @@ class UserProfileTab extends StatelessWidget {
           'Profil Saya',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        backgroundColor: const Color(0xFF1E3C72),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         centerTitle: true,
       ),
@@ -206,7 +207,7 @@ class UserProfileTab extends StatelessWidget {
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                  colors: [AppColors.primary, AppColors.primary],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -236,7 +237,7 @@ class UserProfileTab extends StatelessWidget {
                       child: Text(
                         user?.initials ?? 'U',
                         style: AppTextStyles.displayMd.copyWith(
-                          color: const Color(0xFF1E3C72),
+                          color: AppColors.primary,
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
@@ -385,7 +386,6 @@ class UserProfileTab extends StatelessWidget {
                         color: AppColors.error,
                         onTap: () async {
                           await auth.logout();
-                          if (context.mounted) context.go('/login');
                         },
                       ),
                     ],
